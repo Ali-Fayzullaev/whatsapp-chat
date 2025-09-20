@@ -1,103 +1,204 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Menu, Phone, Video, Send, Paperclip, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
+import { Chat, Message } from "@/components/chat/types";
+import { Sidebar } from "@/components/chat/Sidebar";
+import { ChatHeader } from "@/components/chat/ChatHeader";
+import { MessageBubble } from "@/components/chat/MessageBubble";
+import { Composer } from "@/components/chat/Composer";
+import { IconButton } from "@/components/chat/_parts";
+
+const DEMO_CHATS: Chat[] = [
+  {
+    id: "1",
+    name: "Марина",
+    lastMessage: "Ок, жду! 🚀",
+    time: "10:55",
+    unread: 2,
+    avatarFallback: "М",
+  },
+  {
+    id: "2",
+    name: "Рабочий чат",
+    lastMessage: "Файл залил в диск",
+    time: "09:12",
+    avatarFallback: "R",
+  },
+  {
+    id: "3",
+    name: "Доставка",
+    lastMessage: "Курьер у подъезда",
+    time: "Вчера",
+    avatarFallback: "Д",
+  },
+];
+
+const DEMO_MESSAGES: Message[] = [
+  {
+    id: "m1",
+    chatId: "1",
+    author: "them",
+    text: "Привет! Ты здесь?",
+    time: "10:40",
+  },
+  {
+    id: "m2",
+    chatId: "1",
+    author: "me",
+    text: "Тут. Проверяю макет.",
+    time: "10:41",
+    status: "delivered",
+  },
+  { id: "m3", chatId: "1", author: "them", text: "Ок, жду! 🚀", time: "10:55" },
+];
+
+export default function Page() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [chats, setChats] = useState<Chat[]>(DEMO_CHATS);
+  const [selectedId, setSelectedId] = useState<string>(DEMO_CHATS[0]?.id ?? "");
+  const [messages, setMessages] = useState<Message[]>(DEMO_MESSAGES);
+  const [draft, setDraft] = useState("");
+
+  const selectedChat = useMemo(
+    () => chats.find((c) => c.id === selectedId),
+    [chats, selectedId]
+  );
+  const filtered = useMemo(
+    () =>
+      chats.filter((c) => c.name.toLowerCase().includes(query.toLowerCase())),
+    [chats, query]
+  );
+
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    listRef.current?.scrollTo({
+      top: listRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages, selectedId]);
+
+  function handleSend() {
+    const text = draft.trim();
+    if (!text || !selectedId) return;
+    const newMsg: Message = {
+      id: crypto.randomUUID(),
+      chatId: selectedId,
+      author: "me",
+      text,
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      status: "sent",
+    };
+    setMessages((p) => [...p, newMsg]);
+    setDraft("");
+    setTimeout(() => {
+      setMessages((p) =>
+        p.map((m) => (m.id === newMsg.id ? { ...m, status: "delivered" } : m))
+      );
+    }, 600);
+  }
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <TooltipProvider>
+      <div className="flex h-[calc(100vh-2rem)] md:h-screen w-full bg-background text-foreground">
+        {/* Sidebar (desktop) */}
+        <aside className="hidden md:flex md:w-[360px] lg:w-[400px] flex-col border-r">
+          <Sidebar
+            query={query}
+            setQuery={setQuery}
+            chats={filtered}
+            selectedId={selectedId}
+            setSelectedId={setSelectedId}
+          />
+        </aside>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+        {/* Chat area */}
+        <main className="flex-1 flex flex-col bg-muted/20">
+          {/* Mobile top bar */}
+          <div className="md:hidden flex items-center gap-2 p-2 border-b">
+            <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Меню">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="p-0 w-[92vw] sm:w-[420px]">
+                <SheetHeader className="p-3">
+                  <SheetTitle>Чаты</SheetTitle>
+                </SheetHeader>
+                <Sidebar
+                  query={query}
+                  setQuery={setQuery}
+                  chats={filtered}
+                  selectedId={selectedId}
+                  setSelectedId={(id) => {
+                    setSelectedId(id);
+                    setSidebarOpen(false);
+                  }}
+                  compact
+                />
+              </SheetContent>
+            </Sheet>
+
+            <div className="flex items-center gap-2">
+              <Avatar className="h-9 w-9">
+                <AvatarFallback>
+                  {selectedChat?.avatarFallback ?? "Ч"}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="text-sm font-medium leading-none">
+                  {selectedChat?.name}
+                </div>
+                <div className="text-xs text-muted-foreground">в сети</div>
+              </div>
+            </div>
+
+            <div className="ml-auto flex items-center gap-1">
+              <IconButton label="Звонок">
+                <Phone className="h-5 w-5" />
+              </IconButton>
+              <IconButton label="Видео">
+                <Video className="h-5 w-5" />
+              </IconButton>
+              <ChatHeader.Menu />
+            </div>
+          </div>
+
+          {/* Desktop header */}
+          <ChatHeader chat={selectedChat} />
+
+          {/* Messages */}
+          <ScrollArea ref={listRef as any} className="flex-1">
+            <div className="px-3 md:px-6 py-4 space-y-2">
+              {messages
+                .filter((m) => m.chatId === selectedId)
+                .map((m) => (
+                  <MessageBubble key={m.id} msg={m} />
+                ))}
+            </div>
+          </ScrollArea>
+
+          {/* Composer */}
+          <Composer draft={draft} setDraft={setDraft} onSend={handleSend} />
+        </main>
+      </div>
+    </TooltipProvider>
   );
 }
