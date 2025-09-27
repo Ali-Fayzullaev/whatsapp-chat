@@ -99,3 +99,9 @@
 .dark .chat-bg {
   background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
 }
+
+
+
+.bb {
+  border:  2px solid red;
+}

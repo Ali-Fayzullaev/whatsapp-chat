@@ -20,7 +20,6 @@ function seeded(seedStr: string) {
 }
 
 const NAMES = [
-  "Марина",
   "Али",
   "Елена",
   "Иван",

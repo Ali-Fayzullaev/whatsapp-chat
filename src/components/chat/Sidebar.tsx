@@ -1,4 +1,12 @@
 "use client";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,14 +22,17 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { Chat } from "./types";
 import { HeaderMenu } from "./menus";
+import { useState } from "react";
+// ❌ УДАЛИ useState и useEffect для загрузки чатов
 
 export function Sidebar({
   query,
   setQuery,
-  chats,
+  chats, // ← используем чаты из пропсов
   selectedId,
   setSelectedId,
   compact,
+  onCreateChat,
 }: {
   query: string;
   setQuery: (v: string) => void;
@@ -29,7 +40,19 @@ export function Sidebar({
   selectedId?: string;
   setSelectedId: (id: string) => void;
   compact?: boolean;
+  onCreateChat: (phone: string) => Promise<void>;
 }) {
+  const [newChatPhone, setNewChatPhone] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleCreate = async () => {
+    if (!newChatPhone.trim()) return;
+    setIsCreating(true);
+    await onCreateChat(newChatPhone);
+    setNewChatPhone("");
+    setIsCreating(false);
+  };
+
   return (
     <div className="flex h-full w-full flex-col">
       <div className="flex items-center justify-between p-3">
@@ -64,48 +87,81 @@ export function Sidebar({
       </div>
       <Separator />
       <ScrollArea className="flex-1">
-        <div className="p-2">
-          {chats.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setSelectedId(c.id)}
-              className={[
-                "w-full flex items-center gap-3 p-3 rounded-xl transition-colors",
-                c.id === selectedId ? "bg-accent" : "hover:bg-accent/60",
-              ].join(" ")}
-            >
-              <Avatar className="h-11 w-11">
-                {c.avatarUrl ? (
-                  <AvatarImage src={c.avatarUrl} alt={c.name} />
-                ) : (
-                  <AvatarFallback>
-                    {c.avatarFallback ?? c.name.at(0)}
-                  </AvatarFallback>
-                )}
-              </Avatar>
-              <div className="min-w-0 flex-1 text-left">
-                <div className="flex items-center gap-2">
-                  <div className="truncate font-medium">{c.name}</div>
-                  <div className="ml-auto text-xs text-muted-foreground">
-                    {c.time}
-                  </div>
-                </div>
-                <div className="text-sm text-muted-foreground truncate">
-                  {c.lastMessage}
-                </div>
-              </div>
-              {c.unread ? (
-                <Badge
-                  className="rounded-full px-2 py-0.5 text-[10px]"
-                  variant="default"
-                >
-                  {c.unread}
-                </Badge>
-              ) : null}
-            </button>
-          ))}
+      <div className="p-2">
+  {chats.map((c) => {
+    if (!c.id) {
+      console.warn('Chat без id:', c);
+      return null;
+    }
+    return (
+      <button 
+        key={c.id} // ✅ Только один key
+        onClick={() => setSelectedId(c.id)}
+        className={[
+          "w-full flex items-center gap-3 p-3 rounded-xl transition-colors",
+          c.id === selectedId ? "bg-accent" : "hover:bg-accent/60",
+        ].join(" ")}
+      >
+        <Avatar className="h-11 w-11">
+          {c.avatarUrl ? (
+            <AvatarImage src={c.avatarUrl} alt={c.name} />
+          ) : (
+            <AvatarFallback>
+              {c.avatarFallback ??
+                (typeof c.name === "string" ? c.name.at(0) : "?")}
+            </AvatarFallback>
+          )}
+        </Avatar>
+        <div className="min-w-0 flex-1 text-left">
+          <div className="flex items-center gap-2">
+            <div className="truncate font-medium">{c.name}</div>
+            <div className="ml-auto text-xs text-muted-foreground">
+              {c.time}
+            </div>
+          </div>
+          <div className="text-sm text-muted-foreground truncate">
+            {c.lastMessage}
+          </div>
         </div>
+        {c.unread ? (
+          <Badge
+            className="rounded-full px-2 py-0.5 text-[10px]"
+            variant="default"
+          >
+            {c.unread}
+          </Badge>
+        ) : null}
+      </button> // ✅ Правильное закрытие button
+    );
+  })} 
+</div>
       </ScrollArea>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label="Новый чат">
+            <Plus className="h-5 w-5" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Новый чат</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <Input
+              placeholder="+77012345678"
+              value={newChatPhone}
+              onChange={(e) => setNewChatPhone(e.target.value)}
+              autoFocus
+            />
+            <Button
+              onClick={handleCreate}
+              disabled={isCreating || !newChatPhone.trim()}
+            >
+              {isCreating ? "Создание..." : "Начать чат"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
