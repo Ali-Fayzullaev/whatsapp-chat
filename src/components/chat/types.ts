@@ -4,10 +4,11 @@ export interface Chat {
   name: string;
   phone: string;
   lastMessage: string;
-  time: string;
+  time: string;          // человекочитаемое
   unread: number;
   avatarFallback: string;
   avatarUrl: string;
+  updatedAt?: number;    // ← ДОБАВИЛ: для сортировки списка чатов
 }
 
 export interface Message {
@@ -15,6 +16,7 @@ export interface Message {
   chatId: string;
   author: "me" | "them";
   text: string;
-  time: string;
+  time: string;          // человекочитаемое "HH:MM"
+  createdAt?: number;    // ← ДОБАВИЛ: реальный timestamp (ms)
   status?: "sent" | "delivered" | "read" | "failed";
 }

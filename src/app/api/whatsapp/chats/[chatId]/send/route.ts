@@ -4,10 +4,7 @@ import { NextRequest } from "next/server";
 export async function POST(req: NextRequest, { params }: { params: { chatId: string } }) {
   const { chatId } = params;
   const { text, replyTo } = await req.json();
-
-  if (!text) {
-    return Response.json({ error: "Текст обязателен" }, { status: 400 });
-  }
+  if (!text) return Response.json({ error: "Текст обязателен" }, { status: 400 });
 
   const decodedId = decodeURIComponent(chatId);
   const url = `https://socket.eldor.kz/chats/${decodedId}/send/text`;
@@ -15,11 +12,10 @@ export async function POST(req: NextRequest, { params }: { params: { chatId: str
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    // Бэку можно передать опциональный replyTo (если нужно ответом на сообщение)
     body: JSON.stringify({ text, reply_to: replyTo }),
   });
 
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     return Response.json({ error: "Ошибка API", details: data }, { status: res.status });
   }

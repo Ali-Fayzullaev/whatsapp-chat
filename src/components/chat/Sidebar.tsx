@@ -40,17 +40,21 @@ export function Sidebar({
   selectedId?: string;
   setSelectedId: (id: string) => void;
   compact?: boolean;
-  onCreateChat: (phone: string) => Promise<void>;
+  onCreateChat: (phone: string) => Promise<void>; // ← уже так
 }) {
   const [newChatPhone, setNewChatPhone] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
   const handleCreate = async () => {
-    if (!newChatPhone.trim()) return;
+    const raw = newChatPhone.trim();
+    if (!raw) return;
     setIsCreating(true);
-    await onCreateChat(newChatPhone);
-    setNewChatPhone("");
-    setIsCreating(false);
+    try {
+      await onCreateChat(raw); // ← ПЕРЕДАЁМ НОМЕР
+      setNewChatPhone("");
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
