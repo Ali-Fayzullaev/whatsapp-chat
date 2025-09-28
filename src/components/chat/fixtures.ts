@@ -1,4 +1,30 @@
+//src/app/components/chat/fixtures.ts
 import type { Chat, Message } from "./types";
+
+export function makeChats(count = 15): Chat[] {
+  const rnd = seeded("chats");
+  const chats: Chat[] = [];
+  for (let i = 0; i < count; i++) {
+    const name =
+      NAMES[i % NAMES.length] + (i >= NAMES.length ? " " + (i + 1) : "");
+    const id = String(i + 1);
+    const last = LAST_LINES[Math.floor(rnd() * LAST_LINES.length)];
+    const minutes = 9 * 60 + Math.floor(rnd() * 360); // 09:00..15:00
+    chats.push({
+      id,
+      name,
+      phone: `+7${700000000 + i}`, // Добавляем phone
+      lastMessage: last,
+      time: hhmm(minutes),
+      unread: rnd() > 0.7 ? Math.floor(rnd() * 5) + 1 : 0,
+      avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
+        name
+      )}`,
+      avatarFallback: name[0],
+    });
+  }
+  return chats;
+}
 
 // --- Deterministic RNG (no hydration mismatch) ---
 function mulberry32(seed: number) {
@@ -55,29 +81,9 @@ function hhmm(totalMinutes: number) {
   return `${pad(h)}:${pad(m)}`;
 }
 
-export function makeChats(count = 15): Chat[] {
-  const rnd = seeded("chats");
-  const chats: Chat[] = [];
-  for (let i = 0; i < count; i++) {
-    const name =
-      NAMES[i % NAMES.length] + (i >= NAMES.length ? " " + (i + 1) : "");
-    const id = String(i + 1);
-    const last = LAST_LINES[Math.floor(rnd() * LAST_LINES.length)];
-    const minutes = 9 * 60 + Math.floor(rnd() * 360); // 09:00..15:00
-    chats.push({
-      id,
-      name,
-      lastMessage: last,
-      time: hhmm(minutes),
-      unread: rnd() > 0.7 ? Math.floor(rnd() * 5) + 1 : 0,
-      avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
-        name
-      )}`,
-      avatarFallback: name[0],
-    });
-  }
-  return chats;
-}
+
+
+
 
 export function makeMessages(chats: Chat[]): Message[] {
   const out: Message[] = [];

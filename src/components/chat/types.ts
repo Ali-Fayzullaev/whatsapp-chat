@@ -1,21 +1,20 @@
-export type Chat = {
+// src/components/chat/types.ts
+export interface Chat {
   id: string;
   name: string;
+  phone: string;
   lastMessage: string;
   time: string;
-  unread?: number;
-  avatarUrl?: string;
-  avatarFallback?: string;
-};
+  unread: number;
+  avatarFallback: string;
+  avatarUrl: string;
+}
 
-// src/components/chat/types.ts
-export type MessageStatus = 'sent' | 'delivered' | 'read' | 'failed';
-
-export type Message = {
+export interface Message {
   id: string;
   chatId: string;
-  author: 'me' | 'them';
+  author: "me" | "them";
   text: string;
   time: string;
-  status?: MessageStatus; // ← теперь "failed" разрешён
-};
+  status?: "sent" | "delivered" | "read" | "failed";
+}
