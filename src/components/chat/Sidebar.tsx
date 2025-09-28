@@ -86,7 +86,7 @@ export function Sidebar({
         </div>
       </div>
       <Separator />
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 chat-background">
         <div className="p-2">
           {chats.map((c) => {
             if (!c.id) {

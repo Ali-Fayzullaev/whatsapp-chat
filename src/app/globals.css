@@ -105,3 +105,13 @@
 .bb {
   border:  2px solid red;
 }
+
+
+/* В globals.css или в компоненте */
+.chat-background {
+  background-image: 
+    radial-gradient(circle at 25px 25px, rgba(255,255,255,0.3) 2%, transparent 2.5%),
+    radial-gradient(circle at 75px 75px, rgba(255,255,255,0.3) 2%, transparent 2.5%);
+  background-size: 100px 100px;
+  background-color: #f0f2f5;
+}

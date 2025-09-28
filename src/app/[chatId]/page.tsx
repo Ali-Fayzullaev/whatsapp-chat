@@ -111,7 +111,6 @@ export default function ChatPage() {
     }
   };
 
-  // В функции loadMessages замените на:
   const loadMessages = async (currentChatId: string) => {
     if (!currentChatId) return;
 
@@ -137,7 +136,7 @@ export default function ChatPage() {
       const messagesArray = Array.isArray(data?.items) ? data.items : [];
       console.log("Messages array:", messagesArray);
 
-      // В функции loadMessages замените обработку сообщений на:
+      // Создаем mappedMessages без сортировки внутри map
       const mappedMessages: Message[] = messagesArray
         .filter((msg: any, index: number, array: any[]) => {
           // Убираем дубликаты - оставляем только первое вхождение каждого id_message
@@ -205,9 +204,22 @@ export default function ChatPage() {
           };
         });
 
-      console.log("Filtered mapped messages:", mappedMessages);
+      console.log("Filtered mapped messages before sort:", mappedMessages);
 
-      console.log("Mapped messages:", mappedMessages);
+      // ✅ Теперь сортируем mappedMessages ПОСЛЕ создания всего массива
+      mappedMessages.sort((a, b) => {
+        const timeA = new Date(a.time).getTime();
+        const timeB = new Date(b.time).getTime();
+
+        // Если время некорректное, используем индекс
+        if (isNaN(timeA) || isNaN(timeB)) {
+          return a.id.localeCompare(b.id);
+        }
+
+        return timeA - timeB; // Старые сообщения первыми
+      });
+
+      console.log("Sorted messages:", mappedMessages);
       setMessages(mappedMessages);
     } catch (err) {
       console.error("Failed to load messages", err);
@@ -275,8 +287,14 @@ export default function ChatPage() {
         setChats((prev) => [...prev, newChat]);
         setNewChatPhone("");
 
-        // Переходим к новому чату
+        // ✅ Сразу переходим к новому чату и загружаем сообщения
+        console.log("Navigating to new chat:", newChatId);
         router.push(`/${encodeURIComponent(newChatId)}`);
+
+        // ✅ Ждем немного и загружаем сообщения
+        setTimeout(() => {
+          loadMessages(newChatId);
+        }, 500);
       } else {
         alert(
           "Ошибка: " + (data.error || data.details || "Неизвестная ошибка")
@@ -311,6 +329,9 @@ export default function ChatPage() {
 
     setMessages((prev) => [...prev, newMsg]);
     setDraft("");
+
+    // Прокручиваем сразу после добавления сообщения
+    setTimeout(scrollToBottom, 100);
 
     try {
       console.log("Sending message to chat:", chatId, "text:", text);
@@ -358,8 +379,6 @@ export default function ChatPage() {
       );
       alert("Ошибка сети при отправке");
     }
-
-    scrollToBottom();
   };
 
   // Эффекты
