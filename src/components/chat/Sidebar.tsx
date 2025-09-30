@@ -1,4 +1,4 @@
-//src/app/components/chat/Sidebar.tsx
+// src/components/chat/Sidebar.tsx
 "use client";
 
 import {
@@ -8,7 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -20,7 +20,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
 import { Chat } from "./types";
 import { HeaderMenu } from "./menus";
 import { useState } from "react";
@@ -40,20 +39,28 @@ export function Sidebar({
   selectedId?: string;
   setSelectedId: (id: string) => void;
   compact?: boolean;
-  onCreateChat: (phone: string) => Promise<void>; // ← уже так
+  onCreateChat: (phone: string) => Promise<void>;
 }) {
   const [newChatPhone, setNewChatPhone] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const handleCreate = async () => {
     const raw = newChatPhone.trim();
     if (!raw) return;
     setIsCreating(true);
     try {
-      await onCreateChat(raw); // ← ПЕРЕДАЁМ НОМЕР
+      await onCreateChat(raw);
       setNewChatPhone("");
+      setIsDialogOpen(false); // Закрываем диалог после создания
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleCreate();
     }
   };
 
@@ -67,17 +74,39 @@ export function Sidebar({
           {!compact && <div className="text-sm font-medium">Мой профиль</div>}
         </div>
         <div className="flex items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
+          {/* Кнопка нового чата */}
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Новый чат">
                 <Plus className="h-5 w-5" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>Новый чат</TooltipContent>
-          </Tooltip>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Новый чат</DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-col gap-3 py-2">
+                <Input
+                  placeholder="Введите номер телефона (77751101800)"
+                  value={newChatPhone}
+                  onChange={(e) => setNewChatPhone(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  autoFocus
+                />
+                <Button
+                  onClick={handleCreate}
+                  disabled={isCreating || !newChatPhone.trim()}
+                >
+                  {isCreating ? "Создание..." : "Начать чат"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <HeaderMenu />
         </div>
       </div>
+      {/* Поиск и создание чата */}
       <div className="p-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-60" />
@@ -90,6 +119,25 @@ export function Sidebar({
         </div>
       </div>
       <Separator />
+      // В Sidebar.tsx добавьте временную кнопку для тестирования
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={async () => {
+          // Тестируем API напрямую
+          const testResult = await fetch("/api/whatsapp/test", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: "77751101800@c.us" }),
+          }).then((r) => r.json());
+
+          console.log("API Test Result:", testResult);
+          alert("Check console for API test results");
+        }}
+      >
+        <span className="text-xs">TEST API</span>
+      </Button>
+      {/* Список чатов */}
       <ScrollArea className="flex-1 chat-background">
         <div className="p-2">
           {chats.map((c) => {
@@ -143,37 +191,6 @@ export function Sidebar({
           })}
         </div>
       </ScrollArea>
-
-      {/* Диалог для создания нового чата */}
-      <Dialog>
-        <DialogTrigger asChild>
-          <div className="p-3">
-            <Button className="w-full" variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Новый чат
-            </Button>
-          </div>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Новый чат</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3 py-2">
-            <Input
-              placeholder="77751101800"
-              value={newChatPhone}
-              onChange={(e) => setNewChatPhone(e.target.value)}
-              autoFocus
-            />
-            <Button
-              onClick={handleCreate}
-              disabled={isCreating || !newChatPhone.trim()}
-            >
-              {isCreating ? "Создание..." : "Начать чат"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
