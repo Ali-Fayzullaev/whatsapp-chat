@@ -1,14 +1,16 @@
 // src/components/chat/types.ts
 export interface Chat {
   id: string;
-  name: string;
-  phone: string;
-  lastMessage: string;
-  time: string;          // человекочитаемое
-  unread: number;
-  avatarFallback: string;
-  avatarUrl: string;
-  updatedAt?: number;    // ← ДОБАВИЛ: для сортировки списка чатов
+  chat_id: string;
+  is_group: boolean;
+  name?: string;
+  phone?: string; // Добавляем phone
+  avatarUrl?: string;
+  avatarFallback?: string;
+  lastMessage?: any; // Обновляем тип
+  unread?: number;
+  time?: string;
+  updatedAt?: number; // Добавляем updatedAt
 }
 
 export interface Message {
@@ -16,7 +18,7 @@ export interface Message {
   chatId: string;
   author: "me" | "them";
   text: string;
-  time: string;          // человекочитаемое "HH:MM"
-  createdAt?: number;    // ← ДОБАВИЛ: реальный timestamp (ms)
+  time: string;
+  createdAt?: number;
   status?: "sent" | "delivered" | "read" | "failed";
 }
