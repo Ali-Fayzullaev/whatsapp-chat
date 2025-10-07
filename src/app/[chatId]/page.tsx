@@ -10,6 +10,9 @@ import { Sidebar } from "@/components/chat/Sidebar";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { Composer } from "@/components/chat/Composer";
 import { useWebSocket } from "@/providers/WebSocketProvider";
+import { MobileSidebar } from "@/components/chat/MobileSidebar";
+import { Menu, RefreshCw } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -33,7 +36,7 @@ export default function ChatPage() {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
-
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -50,9 +53,6 @@ export default function ChatPage() {
     if (!el) return true;
     return el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   };
-
-  const scrollToBottom = () =>
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
 
   const fmtTime = (ts: number) =>
     new Date(ts).toLocaleTimeString("ru-RU", {
@@ -154,194 +154,240 @@ export default function ChatPage() {
   }, []);
 
   // ✅ loadMessages с useCallback чтобы избежать пересоздания
-  const loadMessages = useCallback(async (currentChatId: string, silent = false) => {
-    if (!currentChatId) return;
+  const loadMessages = useCallback(
+    async (currentChatId: string, silent = false) => {
+      if (!currentChatId) return;
 
-    const decodedChatId = decodeURIComponent(currentChatId);
+      const decodedChatId = decodeURIComponent(currentChatId);
 
-    if (decodedChatId.startsWith("temp:")) {
-      setMessages([]);
-      if (!silent) setLoadingMessages(false);
-      return;
-    }
-
-    if (!silent) setLoadingMessages(true);
-    try {
-      const res = await fetch(
-        `/api/whatsapp/chats/${encodeURIComponent(decodedChatId)}/messages`,
-        {
-          cache: "no-store",
-          headers: {
-            "Cache-Control": "no-cache",
-          },
-        }
-      );
-
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e?.error || `HTTP ${res.status}`);
+      if (decodedChatId.startsWith("temp:")) {
+        setMessages([]);
+        if (!silent) setLoadingMessages(false);
+        return;
       }
 
-      const data = await res.json();
-      const arr: any[] = Array.isArray(data?.items)
-        ? data.items
-        : Array.isArray(data)
-        ? data
-        : [];
+      if (!silent) setLoadingMessages(true);
+      try {
+        const res = await fetch(
+          `/api/whatsapp/chats/${encodeURIComponent(decodedChatId)}/messages`,
+          {
+            cache: "no-store",
+            headers: {
+              "Cache-Control": "no-cache",
+            },
+          }
+        );
 
-      const seen = new Set<string>();
-      const mapped: Message[] = [];
-
-      arr.forEach((msg: any, idx: number) => {
-        const baseId = msg.id_message || msg.message_ref || msg._id || `${idx}`;
-        if (seen.has(baseId)) return;
-        seen.add(baseId);
-
-        const isOutgoing =
-          msg.direction === "out" ||
-          msg.sender?.id === "me" ||
-          msg.raw?.typeWebhook === "outgoingAPIMessageReceived";
-
-        let text = msg.text ?? "";
-        if (!text) {
-          text =
-            msg.messageData?.textMessageData?.textMessage ??
-            msg.messageData?.extendedTextMessageData?.text ??
-            (msg.media ? "[Медиа]" : "[Сообщение]");
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}));
+          throw new Error(e?.error || `HTTP ${res.status}`);
         }
 
-        const createdAt =
-          typeof msg.timestamp === "number"
-            ? msg.timestamp * 1000
-            : msg.timestamp
-            ? Date.parse(msg.timestamp)
-            : typeof msg.created_at === "number"
-            ? msg.created_at * 1000
-            : msg.created_at
-            ? Date.parse(msg.created_at)
-            : Date.now();
+        const data = await res.json();
+        const arr: any[] = Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data)
+          ? data
+          : [];
 
-        const status = isOutgoing
-          ? msg.status === "read"
-            ? "read"
-            : msg.status === "delivered"
-            ? "delivered"
-            : "sent"
-          : undefined;
+        const seen = new Set<string>();
+        const mapped: Message[] = [];
 
-        mapped.push({
-          id: baseId,
-          chatId: decodedChatId,
-          author: isOutgoing ? "me" : "them",
-          text,
-          time: fmtTime(createdAt),
-          createdAt,
-          status,
-        });
-      });
+        arr.forEach((msg: any, idx: number) => {
+          const baseId =
+            msg.id_message || msg.message_ref || msg._id || `${idx}`;
+          if (seen.has(baseId)) return;
+          seen.add(baseId);
 
-      mapped.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
-      setMessages(mapped);
-    } catch {
-      if (!silent) setMessages([]);
-    } finally {
-      if (!silent) setLoadingMessages(false);
-    }
-  }, []);
+          const isOutgoing =
+            msg.direction === "out" ||
+            msg.sender?.id === "me" ||
+            msg.raw?.typeWebhook === "outgoingAPIMessageReceived";
 
- // 🔹 УЛУЧШЕННЫЙ WebSocket обработчик
-useEffect(() => {
-  const handleWebSocketMessage = (message: any) => {
-    console.log("Processing WebSocket message:", message);
-
-    // Обработка нового входящего сообщения
-    if (message.type === "new_message" || message.event === "message") {
-      console.log("New message received for chat:", message.chat_id);
-      
-      // Если сообщение для текущего чата
-      if (message.chat_id === chatId) {
-        setMessages((prev) => {
-          const newMessage: Message = {
-            id: message.id_message || message.id || `ws-${Date.now()}`,
-            chatId: message.chat_id,
-            author: "them",
-            text: message.text || message.body || message.content || "[Сообщение]",
-            time: fmtTime(Date.now()),
-            createdAt: Date.now(),
-          };
-
-          // Проверяем, нет ли уже такого сообщения
-          if (prev.some((m) => m.id === newMessage.id)) {
-            console.log("Message already exists, skipping");
-            return prev;
+          let text = msg.text ?? "";
+          if (!text) {
+            text =
+              msg.messageData?.textMessageData?.textMessage ??
+              msg.messageData?.extendedTextMessageData?.text ??
+              (msg.media ? "[Медиа]" : "[Сообщение]");
           }
 
-          console.log("Adding new message to state");
-          return [...prev, newMessage].sort(
-            (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
-          );
+          const createdAt =
+            typeof msg.timestamp === "number"
+              ? msg.timestamp * 1000
+              : msg.timestamp
+              ? Date.parse(msg.timestamp)
+              : typeof msg.created_at === "number"
+              ? msg.created_at * 1000
+              : msg.created_at
+              ? Date.parse(msg.created_at)
+              : Date.now();
+
+          const status = isOutgoing
+            ? msg.status === "read"
+              ? "read"
+              : msg.status === "delivered"
+              ? "delivered"
+              : "sent"
+            : undefined;
+
+          mapped.push({
+            id: baseId,
+            chatId: decodedChatId,
+            author: isOutgoing ? "me" : "them",
+            text,
+            time: fmtTime(createdAt),
+            createdAt,
+            status,
+          });
         });
 
-        // Скроллим вниз
-        setTimeout(scrollToBottom, 100);
+        mapped.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+        setMessages(mapped);
+      } catch {
+        if (!silent) setMessages([]);
+      } finally {
+        if (!silent) setLoadingMessages(false);
       }
-      
-      // 🔹 ВАЖНО: Обновляем список чатов при ЛЮБОМ новом сообщении
-      console.log("Refreshing chats list due to new message");
-      setTimeout(() => {
-        loadChats(true);
-      }, 500);
-    }
+    },
+    []
+  );
 
-    // Обработка статусов сообщений
-    if (message.type === "message_status" || message.event === "message_ack") {
-      console.log("Message status update:", message);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === message.id_message || m.id === message.temp_id || m.id === message.id
-            ? { ...m, status: getStatusFromAck(message.status || message.ack) }
-            : m
-        )
-      );
-    }
+  // 🔹 УЛУЧШЕННЫЙ WebSocket обработчик с принудительным обновлением
+  useEffect(() => {
+    const handleWebSocketMessage = (message: any) => {
+      console.log("Processing WebSocket message:", message);
 
-    // Обработка подтверждения отправки
-    if ((message.type === "message_sent" || message.event === "message_sent") && message.temp_id) {
-      console.log("Message sent confirmation:", message);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === message.temp_id
-            ? {
-                ...m,
-                id: message.id_message || m.id,
-                status: "delivered",
-              }
-            : m
-        )
-      );
-    }
-  };
+      // Обработка нового входящего сообщения
+      if (
+        message.type === "new_message" ||
+        message.event === "message" ||
+        message.message
+      ) {
+        console.log(
+          "New message received for chat:",
+          message.chat_id || message.from
+        );
 
-  // Вспомогательная функция для преобразования статусов
-  const getStatusFromAck = (ack: number) => {
-    switch (ack) {
-      case 1: return "sent";
-      case 2: return "delivered"; 
-      case 3: return "read";
-      default: return "sent";
-    }
-  };
+        const messageChatId = message.chat_id || message.from;
 
-  // Подписываемся на сообщения
-  onMessage(handleWebSocketMessage);
+        // Если сообщение для текущего чата
+        if (messageChatId === chatId) {
+          console.log("Message is for current chat, updating UI immediately");
 
-  // Отписываемся при размонтировании
-  return () => {
-    offMessage(handleWebSocketMessage);
-  };
-}, [chatId, onMessage, offMessage, loadChats]);
+          setMessages((prev) => {
+            const newMessage: Message = {
+              id:
+                message.id_message ||
+                message.id ||
+                `ws-${Date.now()}-${Math.random()}`,
+              chatId: messageChatId,
+              author: "them",
+              text:
+                message.text ||
+                message.body ||
+                message.content ||
+                message.message ||
+                "[Сообщение]",
+              time: fmtTime(Date.now()),
+              createdAt: Date.now(),
+            };
 
+            // Проверяем, нет ли уже такого сообщения
+            if (prev.some((m) => m.id === newMessage.id)) {
+              console.log("Message already exists, skipping");
+              return prev;
+            }
 
+            console.log("Adding new message to state:", newMessage);
+            const updatedMessages = [...prev, newMessage].sort(
+              (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
+            );
+
+            // 🔹 ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ
+            setTimeout(() => {
+              scrollToBottom();
+            }, 50);
+
+            return updatedMessages;
+          });
+
+          // 🔹 СРАЗУ обновляем список чатов для этого сообщения
+          setTimeout(() => {
+            loadChats(true);
+          }, 100);
+        } else {
+          // 🔹 ВАЖНО: Если сообщение не для текущего чата, все равно обновляем список
+          console.log("Message for other chat, refreshing chats list");
+          setTimeout(() => {
+            loadChats(true);
+          }, 200);
+        }
+      }
+
+      // Обработка статусов сообщений
+      if (
+        message.type === "message_status" ||
+        message.event === "message_ack" ||
+        message.ack
+      ) {
+        console.log("Message status update:", message);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === message.id_message ||
+            m.id === message.temp_id ||
+            m.id === message.id
+              ? {
+                  ...m,
+                  status: getStatusFromAck(message.status || message.ack),
+                }
+              : m
+          )
+        );
+      }
+
+      // Обработка подтверждения отправки
+      if (
+        (message.type === "message_sent" || message.event === "message_sent") &&
+        message.temp_id
+      ) {
+        console.log("Message sent confirmation:", message);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === message.temp_id
+              ? {
+                  ...m,
+                  id: message.id_message || m.id,
+                  status: "delivered",
+                }
+              : m
+          )
+        );
+      }
+    };
+
+    // Вспомогательная функция для преобразования статусов
+    const getStatusFromAck = (ack: number) => {
+      switch (ack) {
+        case 1:
+          return "sent";
+        case 2:
+          return "delivered";
+        case 3:
+          return "read";
+        default:
+          return "sent";
+      }
+    };
+
+    // Подписываемся на сообщения
+    onMessage(handleWebSocketMessage);
+
+    // Отписываемся при размонтировании
+    return () => {
+      offMessage(handleWebSocketMessage);
+    };
+  }, [chatId, onMessage, offMessage, loadChats]);
 
   // ✅ Исправленный быстрый старт чата
   const handleCreateChat = async (rawPhone: string) => {
@@ -357,259 +403,264 @@ useEffect(() => {
     setMessages([]);
   };
 
- // ✅ ИСПРАВЛЕННАЯ отправка сообщений
-const handleSend = async () => {
-  const text = draft.trim();
-  if (!text || !chatId) {
-    console.log("Cannot send: no text or chatId");
-    return;
-  }
+  // ✅ ИСПРАВЛЕННАЯ отправка сообщений
+  const handleSend = async () => {
+    const text = draft.trim();
+    if (!text || !chatId) {
+      console.log("Cannot send: no text or chatId");
+      return;
+    }
 
-  const now = Date.now();
-  const tempMsgId = crypto.randomUUID();
-  const optimistic: Message = {
-    id: tempMsgId,
-    chatId,
-    author: "me",
-    text,
-    time: fmtTime(now),
-    createdAt: now,
-    status: "sent",
-  };
+    const now = Date.now();
+    const tempMsgId = crypto.randomUUID();
+    const optimistic: Message = {
+      id: tempMsgId,
+      chatId,
+      author: "me",
+      text,
+      time: fmtTime(now),
+      createdAt: now,
+      status: "sent",
+    };
 
-  const stick = isNearBottom();
-  setMessages((prev) =>
-    [...prev, optimistic].sort(
-      (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
-    )
-  );
-  setDraft("");
-  if (stick) setTimeout(scrollToBottom, 40);
+    const stick = isNearBottom();
+    setMessages((prev) =>
+      [...prev, optimistic].sort(
+        (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
+      )
+    );
+    setDraft("");
+    if (stick) setTimeout(scrollToBottom, 40);
 
-  try {
-    let realChatId = chatId;
+    try {
+      let realChatId = chatId;
 
-    // Если это временный чат, создаем реальный
-    if (isTempChat && tempPhone) {
-      console.log("=== CREATING REAL CHAT FROM TEMP ===");
+      // Если это временный чат, создаем реальный
+      if (isTempChat && tempPhone) {
+        console.log("=== CREATING REAL CHAT FROM TEMP ===");
 
-      if (tempPhone.length !== 11) {
-        const errorMsg = `Неверная длина номера: ${tempPhone.length} цифр. Должно быть 11.`;
-        console.error(errorMsg);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === tempMsgId ? { ...m, status: "failed" } : m
-          )
-        );
-        alert(errorMsg);
-        return;
-      }
-
-      const apiPhone = `${tempPhone}@c.us`;
-      console.log("API phone:", apiPhone);
-
-      console.log("Calling start chat API...");
-
-      try {
-        const start = await fetch("/api/whatsapp/chats/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: apiPhone }),
-        });
-
-        console.log("Start chat API response status:", start.status);
-
-        let startData;
-        try {
-          startData = await start.json();
-        } catch (parseError) {
-          console.error("Failed to parse start chat response:", parseError);
-          const textResponse = await start.text();
-          startData = {
-            error: "Invalid JSON response",
-            raw: textResponse,
-            status: start.status,
-          };
-        }
-
-        if (!start.ok || !startData?.chat_id) {
-          let errorMessage = "Не удалось создать чат";
-          if (startData?.error) errorMessage += `: ${startData.error}`;
-
-          console.error("Failed to create chat:", errorMessage);
+        if (tempPhone.length !== 11) {
+          const errorMsg = `Неверная длина номера: ${tempPhone.length} цифр. Должно быть 11.`;
+          console.error(errorMsg);
           setMessages((prev) =>
             prev.map((m) =>
               m.id === tempMsgId ? { ...m, status: "failed" } : m
             )
           );
-          alert(errorMessage);
+          alert(errorMsg);
           return;
         }
 
-        realChatId = String(startData.chat_id);
-        console.log("Real chat created with ID:", realChatId);
-        
-        // 🔹 ВАЖНО: Обновляем состояние перед навигацией
-        setChats(prev => [...prev, {
-          id: realChatId,
-          chat_id: realChatId,
-          is_group: false,
-          name: tempPhone,
-          phone: tempPhone,
-          lastMessage: text,
-          time: fmtTime(now),
-          unread: 0,
-          avatarFallback: tempPhone.slice(0, 2),
-          avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(tempPhone)}`,
-          updatedAt: now,
-        }]);
-        
-        router.replace(`/${realChatId}`);
-      } catch (networkError) {
-        console.error("Network error creating chat:", networkError);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === tempMsgId ? { ...m, status: "failed" } : m
-          )
-        );
-        alert("Ошибка сети при создании чата");
-        return;
-      }
-    }
+        const apiPhone = `${tempPhone}@c.us`;
+        console.log("API phone:", apiPhone);
 
-    console.log("=== SENDING MESSAGE TO REAL CHAT ===");
-    console.log("Real chat ID:", realChatId);
-    console.log("WebSocket connected:", isConnected);
+        console.log("Calling start chat API...");
 
-    // 🔹 ПРИОРИТЕТ: Отправка через WebSocket если подключен
-    if (isConnected) {
-      console.log("Sending via WebSocket");
+        try {
+          const start = await fetch("/api/whatsapp/chats/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: apiPhone }),
+          });
 
-      // 🔹 ИСПРАВЛЕННЫЙ формат сообщения для WebSocket
-      const wsMessage = {
-        action: "send_message", // или "sendMessage" - зависит от вашего сервера
-        chat_id: realChatId,
-        message: text,
-        temp_id: tempMsgId,
-        type: "text"
-      };
+          console.log("Start chat API response status:", start.status);
 
-      console.log("WebSocket message payload:", wsMessage);
-      
-      // Отправляем через WebSocket
-      sendMessage(wsMessage);
+          let startData;
+          try {
+            startData = await start.json();
+          } catch (parseError) {
+            console.error("Failed to parse start chat response:", parseError);
+            const textResponse = await start.text();
+            startData = {
+              error: "Invalid JSON response",
+              raw: textResponse,
+              status: start.status,
+            };
+          }
 
-      // 🔹 НЕ обновляем статус сразу - ждем подтверждения от сервера
-      // setMessages((prev) =>
-      //   prev.map((m) =>
-      //     m.id === tempMsgId ? { ...m, status: "delivered" } : m
-      //   )
-      // );
+          if (!start.ok || !startData?.chat_id) {
+            let errorMessage = "Не удалось создать чат";
+            if (startData?.error) errorMessage += `: ${startData.error}`;
 
-      // Резерв: если через 3 секунды нет подтверждения, пробуем HTTP
-      const fallbackTimeout = setTimeout(() => {
-        console.log("WebSocket timeout, falling back to HTTP");
-        sendViaHttp(realChatId, text, tempMsgId);
-      }, 3000);
+            console.error("Failed to create chat:", errorMessage);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempMsgId ? { ...m, status: "failed" } : m
+              )
+            );
+            alert(errorMessage);
+            return;
+          }
 
-      // Очищаем таймаут при успешном получении подтверждения
-      const cleanup = () => clearTimeout(fallbackTimeout);
-      
-      // Временная подписка на подтверждение отправки
-      const handleSentConfirmation = (message: any) => {
-        if (message.temp_id === tempMsgId || message.id_message) {
-          console.log("Message sent confirmation received:", message);
+          realChatId = String(startData.chat_id);
+          console.log("Real chat created with ID:", realChatId);
+
+          // 🔹 ВАЖНО: Обновляем состояние перед навигацией
+          setChats((prev) => [
+            ...prev,
+            {
+              id: realChatId,
+              chat_id: realChatId,
+              is_group: false,
+              name: tempPhone,
+              phone: tempPhone,
+              lastMessage: text,
+              time: fmtTime(now),
+              unread: 0,
+              avatarFallback: tempPhone.slice(0, 2),
+              avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
+                tempPhone
+              )}`,
+              updatedAt: now,
+            },
+          ]);
+
+          router.replace(`/${realChatId}`);
+        } catch (networkError) {
+          console.error("Network error creating chat:", networkError);
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === tempMsgId
-                ? {
-                    ...m,
-                    id: message.id_message || m.id,
-                    status: "delivered",
-                  }
-                : m
+              m.id === tempMsgId ? { ...m, status: "failed" } : m
             )
           );
-          cleanup();
-          offMessage(handleSentConfirmation);
+          alert("Ошибка сети при создании чата");
+          return;
         }
-      };
-
-      onMessage(handleSentConfirmation);
-
-      // Обновляем список чатов
-      setTimeout(() => {
-        loadChats(true);
-      }, 1000);
-
-    } else {
-      // 🔹 РЕЗЕРВ: Отправка через HTTP если WebSocket не доступен
-      console.log("WebSocket not connected, sending via HTTP");
-      sendViaHttp(realChatId, text, tempMsgId);
-    }
-
-  } catch (error) {
-    console.error("Send message error:", error);
-    setMessages((prev) =>
-      prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
-    );
-    alert("Ошибка сети при отправке");
-  }
-};
-
-// 🔹 Вспомогательная функция для HTTP отправки
-const sendViaHttp = async (realChatId: string, text: string, tempMsgId: string) => {
-  try {
-    const sendRes = await fetch(
-      `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
       }
-    );
 
-    let sendData;
+      console.log("=== SENDING MESSAGE TO REAL CHAT ===");
+      console.log("Real chat ID:", realChatId);
+      console.log("WebSocket connected:", isConnected);
+
+      // 🔹 ПРИОРИТЕТ: Отправка через WebSocket если подключен
+      if (isConnected) {
+        console.log("Sending via WebSocket");
+
+        // 🔹 ИСПРАВЛЕННЫЙ формат сообщения для WebSocket
+        const wsMessage = {
+          action: "send_message", // или "sendMessage" - зависит от вашего сервера
+          chat_id: realChatId,
+          message: text,
+          temp_id: tempMsgId,
+          type: "text",
+        };
+
+        console.log("WebSocket message payload:", wsMessage);
+
+        // Отправляем через WebSocket
+        sendMessage(wsMessage);
+
+        // 🔹 НЕ обновляем статус сразу - ждем подтверждения от сервера
+        // setMessages((prev) =>
+        //   prev.map((m) =>
+        //     m.id === tempMsgId ? { ...m, status: "delivered" } : m
+        //   )
+        // );
+
+        // Резерв: если через 3 секунды нет подтверждения, пробуем HTTP
+        const fallbackTimeout = setTimeout(() => {
+          console.log("WebSocket timeout, falling back to HTTP");
+          sendViaHttp(realChatId, text, tempMsgId);
+        }, 3000);
+
+        // Очищаем таймаут при успешном получении подтверждения
+        const cleanup = () => clearTimeout(fallbackTimeout);
+
+        // Временная подписка на подтверждение отправки
+        const handleSentConfirmation = (message: any) => {
+          if (message.temp_id === tempMsgId || message.id_message) {
+            console.log("Message sent confirmation received:", message);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempMsgId
+                  ? {
+                      ...m,
+                      id: message.id_message || m.id,
+                      status: "delivered",
+                    }
+                  : m
+              )
+            );
+            cleanup();
+            offMessage(handleSentConfirmation);
+          }
+        };
+
+        onMessage(handleSentConfirmation);
+
+        // Обновляем список чатов
+        setTimeout(() => {
+          loadChats(true);
+        }, 1000);
+      } else {
+        // 🔹 РЕЗЕРВ: Отправка через HTTP если WebSocket не доступен
+        console.log("WebSocket not connected, sending via HTTP");
+        sendViaHttp(realChatId, text, tempMsgId);
+      }
+    } catch (error) {
+      console.error("Send message error:", error);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
+      );
+      alert("Ошибка сети при отправке");
+    }
+  };
+
+  // 🔹 Вспомогательная функция для HTTP отправки
+  const sendViaHttp = async (
+    realChatId: string,
+    text: string,
+    tempMsgId: string
+  ) => {
     try {
-      sendData = await sendRes.json();
-    } catch (parseError) {
-      console.error("Failed to parse send message response:", parseError);
-      sendData = { error: "Invalid response" };
-    }
+      const sendRes = await fetch(
+        `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        }
+      );
 
-    if (sendRes.ok) {
-      console.log("Message sent successfully via HTTP");
+      let sendData;
+      try {
+        sendData = await sendRes.json();
+      } catch (parseError) {
+        console.error("Failed to parse send message response:", parseError);
+        sendData = { error: "Invalid response" };
+      }
+
+      if (sendRes.ok) {
+        console.log("Message sent successfully via HTTP");
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempMsgId
+              ? {
+                  ...m,
+                  id: sendData?.id_message || tempMsgId,
+                  status: "delivered",
+                }
+              : m
+          )
+        );
+        setTimeout(() => {
+          loadMessages(realChatId, true);
+          loadChats(true);
+        }, 1000);
+      } else {
+        console.error("Failed to send message via HTTP:", sendData);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
+        );
+        alert(sendData?.error || "Не удалось отправить сообщение");
+      }
+    } catch (error) {
+      console.error("HTTP send error:", error);
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === tempMsgId
-            ? {
-                ...m,
-                id: sendData?.id_message || tempMsgId,
-                status: "delivered",
-              }
-            : m
-        )
+        prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
       );
-      setTimeout(() => {
-        loadMessages(realChatId, true);
-        loadChats(true);
-      }, 1000);
-    } else {
-      console.error("Failed to send message via HTTP:", sendData);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === tempMsgId ? { ...m, status: "failed" } : m
-        )
-      );
-      alert(sendData?.error || "Не удалось отправить сообщение");
     }
-  } catch (error) {
-    console.error("HTTP send error:", error);
-    setMessages((prev) =>
-      prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
-    );
-  }
-};
+  };
 
   // Effects
   useEffect(() => {
@@ -671,171 +722,277 @@ const sendViaHttp = async (realChatId: string, text: string, tempMsgId: string) 
   };
 
   // Добавьте эту функцию для тестирования
-const testWebSocketConnection = () => {
-  console.log('=== WEBSOCKET TEST ===');
-  console.log('Connected:', isConnected);
-  
-  // Тестовая отправка сообщения
-  if (isConnected && chatId && !isTempChat) {
-    sendMessage({
-      action: "ping",
-      timestamp: Date.now()
-    });
-  }
-};
+  const testWebSocketConnection = () => {
+    console.log("=== WEBSOCKET TEST ===");
+    console.log("Connected:", isConnected);
 
-// Добавьте для тестирования API
-const testApiEndpoints = async () => {
-  try {
-    // Тест получения чатов
-    const chatsRes = await fetch('/api/whatsapp/chats');
-    console.log('Chats API status:', chatsRes.status);
-    
-    // Тест отправки сообщения (если есть реальный chatId)
-    if (chatId && !isTempChat) {
-      const testRes = await fetch(`/api/whatsapp/chats/${encodeURIComponent(chatId)}/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "test message" }),
+    // Тестовая отправка сообщения
+    if (isConnected && chatId && !isTempChat) {
+      sendMessage({
+        action: "ping",
+        timestamp: Date.now(),
       });
-      console.log('Send API status:', testRes.status);
     }
-  } catch (error) {
-    console.error('API test error:', error);
-  }
-};
-// Добавьте кнопку для тестирования в UI (временно)
-<Button 
-  variant="outline" 
-  size="sm" 
-  onClick={testWebSocketConnection}
-  className="absolute top-2 right-2 z-50"
->
-  Test WS
-</Button>
+  };
+
+  // Добавьте для тестирования API
+  const testApiEndpoints = async () => {
+    try {
+      // Тест получения чатов
+      const chatsRes = await fetch("/api/whatsapp/chats");
+      console.log("Chats API status:", chatsRes.status);
+
+      // Тест отправки сообщения (если есть реальный chatId)
+      if (chatId && !isTempChat) {
+        const testRes = await fetch(
+          `/api/whatsapp/chats/${encodeURIComponent(chatId)}/send`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: "test message" }),
+          }
+        );
+        console.log("Send API status:", testRes.status);
+      }
+    } catch (error) {
+      console.error("API test error:", error);
+    }
+  };
+  // Добавьте кнопку для тестирования в UI (временно)
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={testWebSocketConnection}
+    className="absolute top-2 right-2 z-50"
+  >
+    Test WS
+  </Button>;
 
   // В компоненте ChatPage добавьте
-useEffect(() => {
-  console.log('=== WEBSOCKET STATUS ===');
-  console.log('WebSocket connected:', isConnected);
-  console.log('Current chatId:', chatId);
-  console.log('Is temp chat:', isTempChat);
-}, [isConnected, chatId, isTempChat]);
+  useEffect(() => {
+    console.log("=== WEBSOCKET STATUS ===");
+    console.log("WebSocket connected:", isConnected);
+    console.log("Current chatId:", chatId);
+    console.log("Is temp chat:", isTempChat);
+  }, [isConnected, chatId, isTempChat]);
   const isLoadingUI = loadingChats || loadingMessages;
 
+  // Улучшенная функция скролла
+const scrollToBottom = useCallback(() => {
+  if (bottomRef.current) {
+    bottomRef.current.scrollIntoView({ 
+      behavior: "smooth", 
+      block: "end",
+      inline: "nearest" 
+    });
+  }
+}, []);
+
+// Авто-скролл при изменении сообщений
+useEffect(() => {
+  const timer = setTimeout(() => {
+    if (isNearBottom()) {
+      scrollToBottom();
+    }
+  }, 100);
+  
+  return () => clearTimeout(timer);
+}, [messages, scrollToBottom]);
+
+// Функция для принудительного обновления
+const forceRefresh = useCallback(() => {
+  console.log("Force refreshing chats and messages");
+  loadChats();
+  if (chatId) {
+    loadMessages(chatId);
+  }
+}, [loadChats, loadMessages, chatId]);
+
+// Добавьте кнопку обновления в мобильный хедер
+<Button
+  variant="ghost"
+  size="icon"
+  onClick={forceRefresh}
+  disabled={loadingChats}
+>
+  <RefreshCw className={`h-4 w-4 ${loadingChats ? 'animate-spin' : ''}`} />
+
+</Button>
+
   return (
-    <TooltipProvider>
-      {/* Индикатор WebSocket подключения */}
-      <div className={`fixed top-0 left-0 right-0 h-1 z-50 transition-all ${
-        isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'
-      }`} />
-      
-      {isPolling && (
-        <div className="fixed top-1 left-0 right-0 h-0.5 bg-blue-500/20 z-50" />
-      )}
+  <TooltipProvider>
+    {/* Индикатор WebSocket подключения */}
+    <div className={`fixed top-0 left-0 right-0 h-1 z-50 transition-all ${
+      isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'
+    }`} />
+    
+    {isPolling && (
+      <div className="fixed top-1 left-0 right-0 h-0.5 bg-blue-500/20 z-50" />
+    )}
 
-      {isLoadingUI && (
-        <div className="fixed inset-x-0 top-2 h-[2px] bg-primary/30 animate-pulse z-50" />
-      )}
+    {isLoadingUI && (
+      <div className="fixed inset-x-0 top-2 h-[2px] bg-primary/30 animate-pulse z-50" />
+    )}
 
-      <div className="flex h-[calc(100vh-2rem)] md:h-screen w-full bg-background text-foreground">
-        {/* Sidebar */}
-        <aside className="hidden md:flex md:w-[360px] lg:w-[400px] flex-col border-r">
-          {loadingChats ? (
-            <div className="p-3 space-y-2">
-              <div className="h-9 bg-muted rounded-md animate-pulse" />
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-14 bg-muted/60 rounded-xl animate-pulse"
-                />
-              ))}
+    {/* Мобильный Sidebar */}
+    <MobileSidebar
+      open={mobileSidebarOpen}
+      onOpenChange={setMobileSidebarOpen}
+      query={query}
+      setQuery={setQuery}
+      chats={filteredChats}
+      selectedId={chatId ?? undefined}
+      setSelectedId={(id) => {
+        console.log("Setting selected chat:", id);
+        router.push(`/${id}`);
+      }}
+      onCreateChat={handleCreateChat}
+    />
+
+    <div className="flex h-[calc(100vh-2rem)] md:h-screen w-full bg-background text-foreground">
+      {/* Desktop Sidebar - скрыт на мобилках */}
+      <aside className="hidden md:flex md:w-[360px] lg:w-[400px] flex-col border-r">
+        {loadingChats ? (
+          <div className="p-3 space-y-2">
+            <div className="h-9 bg-muted rounded-md animate-pulse" />
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-14 bg-muted/60 rounded-xl animate-pulse"
+              />
+            ))}
+          </div>
+        ) : (
+          <Sidebar
+            query={query}
+            setQuery={setQuery}
+            chats={filteredChats}
+            selectedId={chatId ?? undefined}
+            setSelectedId={(id) => {
+              console.log("Setting selected chat:", id);
+              router.push(`/${id}`);
+            }}
+            onCreateChat={handleCreateChat}
+          />
+        )}
+      </aside>
+
+      {/* Chat area */}
+      <main className="flex-1 flex flex-col">
+        {/* Мобильный хедер */}
+        <div className="md:hidden border-b bg-background/95 backdrop-blur">
+          <div className="flex items-center justify-between p-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setMobileSidebarOpen(true)}
+              className="md:hidden"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            
+            <div className="flex-1 text-center">
+              {selectedChat ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback>
+                      {selectedChat.avatarFallback}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="font-medium text-sm">
+                      {selectedChat.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {isConnected ? "online" : "offline"}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="font-medium">Выберите чат</div>
+              )}
             </div>
-          ) : (
-            <Sidebar
-              query={query}
-              setQuery={setQuery}
-              chats={filteredChats}
-              selectedId={chatId ?? undefined}
-              setSelectedId={(id) => {
-                console.log("Setting selected chat:", id);
-                router.push(`/${id}`);
-              }}
-              onCreateChat={handleCreateChat}
-            />
-          )}
-        </aside>
+            
+            <div className="w-9"> {/* Placeholder for balance */} </div>
+          </div>
+        </div>
 
-        {/* Chat area */}
-        <main className="flex-1 flex flex-col">
-          {/* Баннер про скрытый чат */}
-          {(isTempChat ||
-            (selectedChat && hiddenPhones.includes(selectedChat.phone || ""))) && (
-            <div className="px-3 md:px-6 py-2 text-[12px] bg-muted text-muted-foreground border-b flex items-center gap-2">
-              <span>
-                Скрытый чат с{" "}
-                <b>{isTempChat ? tempPhone : selectedChat?.phone}</b> — не
-                показывается в списке слева.
-              </span>
-              <Button
-                variant="link"
-                className="h-auto p-0 text-xs"
-                onClick={unhideCurrent}
+        {/* Баннер про скрытый чат */}
+        {(isTempChat ||
+          (selectedChat && hiddenPhones.includes(selectedChat.phone || ""))) && (
+          <div className="px-3 md:px-6 py-2 text-[12px] bg-muted text-muted-foreground border-b flex items-center gap-2">
+            <span>
+              Скрытый чат с{" "}
+              <b>{isTempChat ? tempPhone : selectedChat?.phone}</b> — не
+              показывается в списке слева.
+            </span>
+            <Button
+              variant="link"
+              className="h-auto p-0 text-xs"
+              onClick={unhideCurrent}
+            >
+              Показать в списке
+            </Button>
+          </div>
+        )}
+
+        {/* Messages */}
+        {chatId ? (
+          <ScrollArea
+            className="flex-1"
+            ref={(el) => {
+              const vp = el?.querySelector(
+                "[data-radix-scroll-area-viewport]"
+              ) as HTMLDivElement | null;
+              scrollContainerRef.current = vp ?? null;
+            }}
+          >
+            <div className="px-3 md:px-6 py-4 space-y-3">
+              {loadingMessages ? (
+                <>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`flex ${
+                        i % 2 ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      <div className="h-12 w-56 bg-muted rounded-2xl animate-pulse" />
+                    </div>
+                  ))}
+                </>
+              ) : messages.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  {isTempChat
+                    ? "Напишите первое сообщение — чат ещё не создан на сервере"
+                    : "Нет сообщений"}
+                </div>
+              ) : (
+                messages.map((m) => <MessageBubble key={m.id} msg={m} />)
+              )}
+              <div ref={bottomRef} />
+            </div>
+          </ScrollArea>
+        ) : (
+          <div className="flex-1 flex items-center justify-center p-4">
+            <div className="text-center max-w-sm">
+              <div className="text-lg font-semibold mb-2">Выберите чат</div>
+              <p className="text-muted-foreground mb-4">
+                Начните общение, выбрав существующий чат или создав новый
+              </p>
+              <Button 
+                onClick={() => setMobileSidebarOpen(true)}
+                className="w-full"
               >
-                Показать в списке
+                <Menu className="h-4 w-4 mr-2" />
+                Открыть список чатов
               </Button>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Messages */}
-          {chatId ? (
-            <ScrollArea
-              className="flex-1"
-              ref={(el) => {
-                const vp = el?.querySelector(
-                  "[data-radix-scroll-area-viewport]"
-                ) as HTMLDivElement | null;
-                scrollContainerRef.current = vp ?? null;
-              }}
-            >
-              <div className="px-3 md:px-6 py-4 space-y-3">
-                {loadingMessages ? (
-                  <>
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`flex ${
-                          i % 2 ? "justify-end" : "justify-start"
-                        }`}
-                      >
-                        <div className="h-12 w-56 bg-muted rounded-2xl animate-pulse" />
-                      </div>
-                    ))}
-                  </>
-                ) : messages.length === 0 ? (
-                  <div className="text-center text-muted-foreground py-8">
-                    {isTempChat
-                      ? "Напишите первое сообщение — чат ещё не создан на сервере"
-                      : "Нет сообщений"}
-                  </div>
-                ) : (
-                  messages.map((m) => <MessageBubble key={m.id} msg={m} />)
-                )}
-                <div ref={bottomRef} />
-              </div>
-            </ScrollArea>
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-lg font-semibold mb-2">Выберите чат</div>
-                <p className="text-muted-foreground">
-                  Слева — список ваших контактов
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Composer */}
+        {/* Composer */}
+        {chatId && (
           <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t">
             <Composer
               draft={draft}
@@ -849,8 +1006,9 @@ useEffect(() => {
               }
             />
           </div>
-        </main>
-      </div>
-    </TooltipProvider>
-  );
+        )}
+      </main>
+    </div>
+  </TooltipProvider>
+);
 }
