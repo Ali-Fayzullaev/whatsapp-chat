@@ -346,6 +346,60 @@ export default function ChatPage() {
         );
       }
 
+      // В WebSocket обработчике добавьте:
+      if (message.type === "new_message" && message.media) {
+        console.log("New media message received:", message);
+
+        if (message.chat_id === chatId) {
+          setMessages((prev) => {
+            const newMessage: Message = {
+              id: message.id_message || `ws-${Date.now()}`,
+              chatId: message.chat_id,
+              author: "them",
+              text: getIncomingMediaText(
+                message.media?.type,
+                message.media?.name
+              ),
+              time: fmtTime(Date.now()),
+              createdAt: Date.now(),
+              media: message.media
+                ? {
+                    url: message.media.url,
+                    type: message.media.type,
+                    name: message.media.name,
+                    size: message.media.size,
+                    mime: message.media.mime,
+                  }
+                : undefined,
+            };
+
+            if (prev.some((m) => m.id === newMessage.id)) return prev;
+
+            return [...prev, newMessage].sort(
+              (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
+            );
+          });
+
+          setTimeout(scrollToBottom, 100);
+        }
+      }
+
+      // Вспомогательная функция
+      const getIncomingMediaText = (mediaType: string, fileName: string) => {
+        switch (mediaType) {
+          case "image":
+            return "📷 Изображение";
+          case "video":
+            return "🎥 Видео";
+          case "audio":
+            return "🎵 Аудио";
+          case "document":
+            return `📄 ${fileName || "Документ"}`;
+          default:
+            return "📎 Файл";
+        }
+      };
+
       // Обработка подтверждения отправки
       if (
         (message.type === "message_sent" || message.event === "message_sent") &&
@@ -606,6 +660,133 @@ export default function ChatPage() {
     }
   };
 
+  // В ChatPage компоненте добавьте функцию отправки медиа
+  const handleSendMedia = async (file: File, fileType: string) => {
+    if (!chatId) {
+      console.log("Cannot send media: no chatId");
+      return;
+    }
+
+    const now = Date.now();
+    const tempMsgId = crypto.randomUUID();
+
+    // Оптимистичное сообщение для медиа
+    const optimistic: Message = {
+      id: tempMsgId,
+      chatId,
+      author: "me",
+      text: getMediaText(fileType, file.name),
+      time: fmtTime(now),
+      createdAt: now,
+      status: "sent",
+      media: {
+        url: URL.createObjectURL(file),
+        type: fileType as "image" | "video" | "document" | "audio",
+        name: file.name,
+        size: file.size,
+        mime: file.type,
+      },
+    };
+
+    const stick = isNearBottom();
+    setMessages((prev) =>
+      [...prev, optimistic].sort(
+        (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
+      )
+    );
+    if (stick) setTimeout(scrollToBottom, 40);
+
+    try {
+      let realChatId = chatId;
+
+      // Если это временный чат, создаем реальный (как в handleSend)
+      if (isTempChat && tempPhone) {
+        // ... код создания чата из handleSend ...
+      }
+
+      console.log("=== SENDING MEDIA TO REAL CHAT ===");
+      console.log("Real chat ID:", realChatId);
+      console.log("File type:", fileType);
+      console.log("File name:", file.name);
+
+      // Создаем FormData для отправки
+      const formData = new FormData();
+      formData.append("file", file);
+      // Можно добавить caption если нужно
+      // formData.append('caption', 'Текст к медиа');
+
+      const sendRes = await fetch(
+        `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send/media`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      let sendData;
+      try {
+        sendData = await sendRes.json();
+      } catch (parseError) {
+        console.error("Failed to parse send media response:", parseError);
+        sendData = { error: "Invalid response" };
+      }
+
+      if (sendRes.ok) {
+        console.log("Media sent successfully");
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempMsgId
+              ? {
+                  ...m,
+                  id: sendData?.id_message || tempMsgId,
+                  status: "delivered",
+                  // Обновляем URL на серверный если есть
+                  media: m.media
+                    ? {
+                        ...m.media,
+                        url: sendData?.media_url || m.media.url,
+                      }
+                    : m.media,
+                }
+              : m
+          )
+        );
+        setTimeout(() => {
+          loadMessages(realChatId, true);
+          loadChats(true);
+        }, 1000);
+      } else {
+        console.error("Failed to send media:", sendData);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
+        );
+        alert(sendData?.error || "Не удалось отправить медиа");
+      }
+    } catch (error) {
+      console.error("Send media error:", error);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
+      );
+      alert("Ошибка сети при отправке медиа");
+    }
+  };
+
+  // Вспомогательная функция для текста медиа
+  const getMediaText = (fileType: string, fileName: string) => {
+    switch (fileType) {
+      case "image":
+        return "📷 Изображение";
+      case "video":
+        return "🎥 Видео";
+      case "audio":
+        return "🎵 Аудио";
+      case "document":
+        return `📄 ${fileName}`;
+      default:
+        return "📎 Файл";
+    }
+  };
+
   // 🔹 Вспомогательная функция для HTTP отправки
   const sendViaHttp = async (
     realChatId: string,
@@ -734,30 +915,6 @@ export default function ChatPage() {
       });
     }
   };
-
-  // Добавьте для тестирования API
-  const testApiEndpoints = async () => {
-    try {
-      // Тест получения чатов
-      const chatsRes = await fetch("/api/whatsapp/chats");
-      console.log("Chats API status:", chatsRes.status);
-
-      // Тест отправки сообщения (если есть реальный chatId)
-      if (chatId && !isTempChat) {
-        const testRes = await fetch(
-          `/api/whatsapp/chats/${encodeURIComponent(chatId)}/send`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: "test message" }),
-          }
-        );
-        console.log("Send API status:", testRes.status);
-      }
-    } catch (error) {
-      console.error("API test error:", error);
-    }
-  };
   // Добавьте кнопку для тестирования в UI (временно)
   <Button
     variant="outline"
@@ -778,237 +935,240 @@ export default function ChatPage() {
   const isLoadingUI = loadingChats || loadingMessages;
 
   // Улучшенная функция скролла
-const scrollToBottom = useCallback(() => {
-  if (bottomRef.current) {
-    bottomRef.current.scrollIntoView({ 
-      behavior: "smooth", 
-      block: "end",
-      inline: "nearest" 
-    });
-  }
-}, []);
-
-// Авто-скролл при изменении сообщений
-useEffect(() => {
-  const timer = setTimeout(() => {
-    if (isNearBottom()) {
-      scrollToBottom();
+  const scrollToBottom = useCallback(() => {
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+        inline: "nearest",
+      });
     }
-  }, 100);
-  
-  return () => clearTimeout(timer);
-}, [messages, scrollToBottom]);
+  }, []);
 
-// Функция для принудительного обновления
-const forceRefresh = useCallback(() => {
-  console.log("Force refreshing chats and messages");
-  loadChats();
-  if (chatId) {
-    loadMessages(chatId);
-  }
-}, [loadChats, loadMessages, chatId]);
+  // Авто-скролл при изменении сообщений
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isNearBottom()) {
+        scrollToBottom();
+      }
+    }, 100);
 
-// Добавьте кнопку обновления в мобильный хедер
-<Button
-  variant="ghost"
-  size="icon"
-  onClick={forceRefresh}
-  disabled={loadingChats}
->
-  <RefreshCw className={`h-4 w-4 ${loadingChats ? 'animate-spin' : ''}`} />
+    return () => clearTimeout(timer);
+  }, [messages, scrollToBottom]);
 
-</Button>
+  // Функция для принудительного обновления
+  const forceRefresh = useCallback(() => {
+    console.log("Force refreshing chats and messages");
+    loadChats();
+    if (chatId) {
+      loadMessages(chatId);
+    }
+  }, [loadChats, loadMessages, chatId]);
+
+  // Добавьте кнопку обновления в мобильный хедер
+  <Button
+    variant="ghost"
+    size="icon"
+    onClick={forceRefresh}
+    disabled={loadingChats}
+  >
+    <RefreshCw className={`h-4 w-4 ${loadingChats ? "animate-spin" : ""}`} />
+  </Button>;
 
   return (
-  <TooltipProvider>
-    {/* Индикатор WebSocket подключения */}
-    <div className={`fixed top-0 left-0 right-0 h-1 z-50 transition-all ${
-      isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'
-    }`} />
-    
-    {isPolling && (
-      <div className="fixed top-1 left-0 right-0 h-0.5 bg-blue-500/20 z-50" />
-    )}
+    <TooltipProvider>
+      {/* Индикатор WebSocket подключения */}
+      <div
+        className={`fixed top-0 left-0 right-0 h-1 z-50 transition-all ${
+          isConnected ? "bg-green-500" : "bg-red-500 animate-pulse"
+        }`}
+      />
 
-    {isLoadingUI && (
-      <div className="fixed inset-x-0 top-2 h-[2px] bg-primary/30 animate-pulse z-50" />
-    )}
+      {isPolling && (
+        <div className="fixed top-1 left-0 right-0 h-0.5 bg-blue-500/20 z-50" />
+      )}
 
-    {/* Мобильный Sidebar */}
-    <MobileSidebar
-      open={mobileSidebarOpen}
-      onOpenChange={setMobileSidebarOpen}
-      query={query}
-      setQuery={setQuery}
-      chats={filteredChats}
-      selectedId={chatId ?? undefined}
-      setSelectedId={(id) => {
-        console.log("Setting selected chat:", id);
-        router.push(`/${id}`);
-      }}
-      onCreateChat={handleCreateChat}
-    />
+      {isLoadingUI && (
+        <div className="fixed inset-x-0 top-2 h-[2px] bg-primary/30 animate-pulse z-50" />
+      )}
 
-    <div className="flex h-[calc(100vh-2rem)] md:h-screen w-full bg-background text-foreground">
-      {/* Desktop Sidebar - скрыт на мобилках */}
-      <aside className="hidden md:flex md:w-[360px] lg:w-[400px] flex-col border-r">
-        {loadingChats ? (
-          <div className="p-3 space-y-2">
-            <div className="h-9 bg-muted rounded-md animate-pulse" />
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-14 bg-muted/60 rounded-xl animate-pulse"
-              />
-            ))}
-          </div>
-        ) : (
-          <Sidebar
-            query={query}
-            setQuery={setQuery}
-            chats={filteredChats}
-            selectedId={chatId ?? undefined}
-            setSelectedId={(id) => {
-              console.log("Setting selected chat:", id);
-              router.push(`/${id}`);
-            }}
-            onCreateChat={handleCreateChat}
-          />
-        )}
-      </aside>
+      {/* Мобильный Sidebar */}
+      <MobileSidebar
+        open={mobileSidebarOpen}
+        onOpenChange={setMobileSidebarOpen}
+        query={query}
+        setQuery={setQuery}
+        chats={filteredChats}
+        selectedId={chatId ?? undefined}
+        setSelectedId={(id) => {
+          console.log("Setting selected chat:", id);
+          router.push(`/${id}`);
+        }}
+        onCreateChat={handleCreateChat}
+      />
 
-      {/* Chat area */}
-      <main className="flex-1 flex flex-col">
-        {/* Мобильный хедер */}
-        <div className="md:hidden border-b bg-background/95 backdrop-blur">
-          <div className="flex items-center justify-between p-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setMobileSidebarOpen(true)}
-              className="md:hidden"
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-            
-            <div className="flex-1 text-center">
-              {selectedChat ? (
-                <div className="flex items-center justify-center gap-2">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>
-                      {selectedChat.avatarFallback}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="font-medium text-sm">
-                      {selectedChat.name}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {isConnected ? "online" : "offline"}
+      <div className="flex h-[calc(100vh-2rem)] md:h-screen w-full bg-background text-foreground">
+        {/* Desktop Sidebar - скрыт на мобилках */}
+        <aside className="hidden md:flex md:w-[360px] lg:w-[400px] flex-col border-r">
+          {loadingChats ? (
+            <div className="p-3 space-y-2">
+              <div className="h-9 bg-muted rounded-md animate-pulse" />
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-14 bg-muted/60 rounded-xl animate-pulse"
+                />
+              ))}
+            </div>
+          ) : (
+            <Sidebar
+              query={query}
+              setQuery={setQuery}
+              chats={filteredChats}
+              selectedId={chatId ?? undefined}
+              setSelectedId={(id) => {
+                console.log("Setting selected chat:", id);
+                router.push(`/${id}`);
+              }}
+              onCreateChat={handleCreateChat}
+            />
+          )}
+        </aside>
+
+        {/* Chat area */}
+        <main className="flex-1 flex flex-col">
+          {/* Мобильный хедер */}
+          <div className="md:hidden border-b bg-background/95 backdrop-blur">
+            <div className="flex items-center justify-between p-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileSidebarOpen(true)}
+                className="md:hidden"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+
+              <div className="flex-1 text-center">
+                {selectedChat ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>
+                        {selectedChat.avatarFallback}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="font-medium text-sm">
+                        {selectedChat.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {isConnected ? "online" : "offline"}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="font-medium">Выберите чат</div>
-              )}
-            </div>
-            
-            <div className="w-9"> {/* Placeholder for balance */} </div>
-          </div>
-        </div>
+                ) : (
+                  <div className="font-medium">Выберите чат</div>
+                )}
+              </div>
 
-        {/* Баннер про скрытый чат */}
-        {(isTempChat ||
-          (selectedChat && hiddenPhones.includes(selectedChat.phone || ""))) && (
-          <div className="px-3 md:px-6 py-2 text-[12px] bg-muted text-muted-foreground border-b flex items-center gap-2">
-            <span>
-              Скрытый чат с{" "}
-              <b>{isTempChat ? tempPhone : selectedChat?.phone}</b> — не
-              показывается в списке слева.
-            </span>
-            <Button
-              variant="link"
-              className="h-auto p-0 text-xs"
-              onClick={unhideCurrent}
-            >
-              Показать в списке
-            </Button>
-          </div>
-        )}
-
-        {/* Messages */}
-        {chatId ? (
-          <ScrollArea
-            className="flex-1"
-            ref={(el) => {
-              const vp = el?.querySelector(
-                "[data-radix-scroll-area-viewport]"
-              ) as HTMLDivElement | null;
-              scrollContainerRef.current = vp ?? null;
-            }}
-          >
-            <div className="px-3 md:px-6 py-4 space-y-3">
-              {loadingMessages ? (
-                <>
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`flex ${
-                        i % 2 ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      <div className="h-12 w-56 bg-muted rounded-2xl animate-pulse" />
-                    </div>
-                  ))}
-                </>
-              ) : messages.length === 0 ? (
-                <div className="text-center text-muted-foreground py-8">
-                  {isTempChat
-                    ? "Напишите первое сообщение — чат ещё не создан на сервере"
-                    : "Нет сообщений"}
-                </div>
-              ) : (
-                messages.map((m) => <MessageBubble key={m.id} msg={m} />)
-              )}
-              <div ref={bottomRef} />
+              <div className="w-9"> {/* Placeholder for balance */} </div>
             </div>
-          </ScrollArea>
-        ) : (
-          <div className="flex-1 flex items-center justify-center p-4">
-            <div className="text-center max-w-sm">
-              <div className="text-lg font-semibold mb-2">Выберите чат</div>
-              <p className="text-muted-foreground mb-4">
-                Начните общение, выбрав существующий чат или создав новый
-              </p>
-              <Button 
-                onClick={() => setMobileSidebarOpen(true)}
-                className="w-full"
+          </div>
+
+          {/* Баннер про скрытый чат */}
+          {(isTempChat ||
+            (selectedChat &&
+              hiddenPhones.includes(selectedChat.phone || ""))) && (
+            <div className="px-3 md:px-6 py-2 text-[12px] bg-muted text-muted-foreground border-b flex items-center gap-2">
+              <span>
+                Скрытый чат с{" "}
+                <b>{isTempChat ? tempPhone : selectedChat?.phone}</b> — не
+                показывается в списке слева.
+              </span>
+              <Button
+                variant="link"
+                className="h-auto p-0 text-xs"
+                onClick={unhideCurrent}
               >
-                <Menu className="h-4 w-4 mr-2" />
-                Открыть список чатов
+                Показать в списке
               </Button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Composer */}
-        {chatId && (
-          <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t">
-            <Composer
-              draft={draft}
-              setDraft={setDraft}
-              onSend={handleSend}
-              disabled={!chatId}
-              placeholder={
-                chatId
-                  ? "Введите сообщение..."
-                  : "Сначала выберите чат или создайте новый"
-              }
-            />
-          </div>
-        )}
-      </main>
-    </div>
-  </TooltipProvider>
-);
+          {/* Messages */}
+          {chatId ? (
+            <ScrollArea
+              className="flex-1"
+              ref={(el) => {
+                const vp = el?.querySelector(
+                  "[data-radix-scroll-area-viewport]"
+                ) as HTMLDivElement | null;
+                scrollContainerRef.current = vp ?? null;
+              }}
+            >
+              <div className="px-3 md:px-6 py-4 space-y-3">
+                {loadingMessages ? (
+                  <>
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`flex ${
+                          i % 2 ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        <div className="h-12 w-56 bg-muted rounded-2xl animate-pulse" />
+                      </div>
+                    ))}
+                  </>
+                ) : messages.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-8">
+                    {isTempChat
+                      ? "Напишите первое сообщение — чат ещё не создан на сервере"
+                      : "Нет сообщений"}
+                  </div>
+                ) : (
+                  messages.map((m) => <MessageBubble key={m.id} msg={m} />)
+                )}
+                <div ref={bottomRef} />
+              </div>
+            </ScrollArea>
+          ) : (
+            <div className="flex-1 flex items-center justify-center p-4">
+              <div className="text-center max-w-sm">
+                <div className="text-lg font-semibold mb-2">Выберите чат</div>
+                <p className="text-muted-foreground mb-4">
+                  Начните общение, выбрав существующий чат или создав новый
+                </p>
+                <Button
+                  onClick={() => setMobileSidebarOpen(true)}
+                  className="w-full"
+                >
+                  <Menu className="h-4 w-4 mr-2" />
+                  Открыть список чатов
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Composer */}
+          {chatId && (
+            <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t">
+              <Composer
+                draft={draft}
+                setDraft={setDraft}
+                onSend={handleSend}
+                onSendMedia={handleSendMedia}
+                disabled={!chatId}
+                placeholder={
+                  chatId
+                    ? "Введите сообщение..."
+                    : "Сначала выберите чат или создайте новый"
+                }
+              />
+            </div>
+          )}
+        </main>
+      </div>
+    </TooltipProvider>
+  );
 }
