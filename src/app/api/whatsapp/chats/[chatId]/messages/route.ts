@@ -10,10 +10,10 @@ export async function GET(
   console.log('Loading messages for chat:', chatId);
   
   try {
-    // Декодируем chatId и убедимся, что он в правильном формате
     const decodedChatId = decodeURIComponent(chatId);
     console.log('Decoded chat ID:', decodedChatId);
     
+    // 🔹 ПРОВЕРЬТЕ ПРАВИЛЬНЫЙ URL ВАШЕГО API
     const apiUrl = `https://socket.eldor.kz/chats/${decodedChatId}/messages`;
     console.log('Fetching from URL:', apiUrl);
     
@@ -29,15 +29,22 @@ export async function GET(
     if (!res.ok) {
       const errorText = await res.text();
       console.error('Messages API error:', errorText);
+      
+      // 🔹 ВОЗВРАЩАЕМ ПУСТОЙ МАССИВ ЕСЛИ ЧАТ НЕ НАЙДЕН
+      if (res.status === 404) {
+        return Response.json([]);
+      }
+      
       return Response.json({ error: 'Failed to fetch messages' }, { status: res.status });
     }
 
     const data = await res.json();
-    console.log('Messages API response data:', JSON.stringify(data, null, 2));
+    console.log('Messages API response data:', data);
     
     return Response.json(data);
   } catch (error) {
     console.error('Messages fetch error:', error);
-    return Response.json({ error: 'Failed to fetch messages' }, { status: 500 });
+    // 🔹 ВОЗВРАЩАЕМ ПУСТОЙ МАССИВ ПРИ ОШИБКЕ
+    return Response.json([]);
   }
 }

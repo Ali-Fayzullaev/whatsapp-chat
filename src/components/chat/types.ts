@@ -21,3 +21,18 @@ export interface MediaFile {
   type: "image" | "video" | "document" | "audio";
   previewUrl?: string;
 }
+
+
+export interface Chat {
+  id: string;
+  chat_id: string;
+  is_group: boolean;
+  name?: string;
+  phone?: string; // Добавляем phone
+  avatarUrl?: string;
+  avatarFallback?: string;
+  lastMessage?: any; // Обновляем тип
+  unread?: number;
+  time?: string;
+  updatedAt?: number; // Добавляем updatedAt
+}

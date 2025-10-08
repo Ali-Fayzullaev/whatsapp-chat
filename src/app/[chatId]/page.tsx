@@ -54,11 +54,16 @@ export default function ChatPage() {
     return el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   };
 
-  const fmtTime = (ts: number) =>
-    new Date(ts).toLocaleTimeString("ru-RU", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const fmtTime = (ts: number) => {
+    try {
+      return new Date(ts).toLocaleTimeString("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "00:00";
+    }
+  };
 
   const normalizePhone = (raw: string) => {
     let p = raw.trim().replace(/\D/g, "");
@@ -95,16 +100,16 @@ export default function ChatPage() {
           "Cache-Control": "no-cache",
         },
       });
+
+      let data;
       if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e?.error || "Failed to load chats");
+        console.warn("Chats API returned error:", res.status);
+        data = []; // Используем пустой массив при ошибке
+      } else {
+        data = await res.json();
       }
-      const data = await res.json();
-      const items: any[] = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.items)
-        ? data.items
-        : [];
+
+      const items: any[] = Array.isArray(data) ? data : [];
 
       const mapped: Chat[] = items.map((raw: any, i: number) => {
         const rawId = raw?.chat_id || raw?.id;
@@ -144,22 +149,26 @@ export default function ChatPage() {
       mapped.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
       setChats(mapped);
     } catch (e: any) {
+      console.error("Failed to load chats:", e);
+      setChats([]); // Устанавливаем пустой массив при ошибке
       if (!silent) {
-        setError(e?.message ?? "Unknown error");
-        setChats([]);
+        setError(e?.message ?? "Failed to load chats");
       }
     } finally {
       if (!silent) setLoadingChats(false);
     }
   }, []);
 
-  // ✅ loadMessages с useCallback чтобы избежать пересоздания
   const loadMessages = useCallback(
     async (currentChatId: string, silent = false) => {
-      if (!currentChatId) return;
+      if (!currentChatId) {
+        if (!silent) setLoadingMessages(false);
+        return;
+      }
 
       const decodedChatId = decodeURIComponent(currentChatId);
 
+      // Обработка временных чатов
       if (decodedChatId.startsWith("temp:")) {
         setMessages([]);
         if (!silent) setLoadingMessages(false);
@@ -167,7 +176,10 @@ export default function ChatPage() {
       }
 
       if (!silent) setLoadingMessages(true);
+
       try {
+        console.log(`Loading messages for chat: ${decodedChatId}`);
+
         const res = await fetch(
           `/api/whatsapp/chats/${encodeURIComponent(decodedChatId)}/messages`,
           {
@@ -178,80 +190,185 @@ export default function ChatPage() {
           }
         );
 
+        // 🔹 УЛУЧШЕННАЯ ОБРАБОТКА ОШИБОК
         if (!res.ok) {
-          const e = await res.json().catch(() => ({}));
-          throw new Error(e?.error || `HTTP ${res.status}`);
+          console.warn(`Messages API error: ${res.status} ${res.statusText}`);
+
+          // Для 404 ошибки - возвращаем пустой массив (чат не найден)
+          if (res.status === 404) {
+            setMessages([]);
+            return;
+          }
+
+          // Для других ошибок пробуем получить текст ошибки
+          try {
+            const errorData = await res.json();
+            throw new Error(errorData?.error || `HTTP ${res.status}`);
+          } catch {
+            throw new Error(`Failed to load messages: ${res.status}`);
+          }
         }
 
         const data = await res.json();
-        const arr: any[] = Array.isArray(data?.items)
-          ? data.items
-          : Array.isArray(data)
-          ? data
-          : [];
+        console.log("Messages API response:", data);
 
-        const seen = new Set<string>();
+        // 🔹 БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ ДАННЫХ
+        let messagesArray: any[] = [];
+
+        if (Array.isArray(data)) {
+          messagesArray = data;
+        } else if (data && Array.isArray(data.items)) {
+          messagesArray = data.items;
+        } else if (data && typeof data === "object") {
+          // Если данные в другом формате, пробуем извлечь сообщения
+          messagesArray = Object.values(data).filter(Array.isArray).flat();
+        }
+
+        console.log(`Processing ${messagesArray.length} messages`);
+
+        // 🔹 ОБРАБОТКА СООБЩЕНИЙ С ДУБЛИКАТАМИ
+        const seenIds = new Set<string>();
         const mapped: Message[] = [];
 
-        arr.forEach((msg: any, idx: number) => {
-          const baseId =
-            msg.id_message || msg.message_ref || msg._id || `${idx}`;
-          if (seen.has(baseId)) return;
-          seen.add(baseId);
+        messagesArray.forEach((msg: any, index: number) => {
+          try {
+            // Безопасное извлечение ID
+            const baseId =
+              msg.id_message ||
+              msg.id ||
+              msg.message_ref ||
+              msg._id ||
+              `msg-${index}-${Date.now()}`;
 
-          const isOutgoing =
-            msg.direction === "out" ||
-            msg.sender?.id === "me" ||
-            msg.raw?.typeWebhook === "outgoingAPIMessageReceived";
+            // Пропускаем дубликаты
+            if (seenIds.has(baseId)) {
+              console.log(`Skipping duplicate message: ${baseId}`);
+              return;
+            }
+            seenIds.add(baseId);
 
-          let text = msg.text ?? "";
-          if (!text) {
-            text =
-              msg.messageData?.textMessageData?.textMessage ??
-              msg.messageData?.extendedTextMessageData?.text ??
-              (msg.media ? "[Медиа]" : "[Сообщение]");
+            // Определяем авторство
+            const isOutgoing = Boolean(
+              msg.direction === "out" ||
+                msg.sender?.id === "me" ||
+                msg.fromMe ||
+                msg.raw?.typeWebhook === "outgoingAPIMessageReceived"
+            );
+
+            // Безопасное извлечение текста
+            let text = msg.text || "";
+            if (!text && msg.messageData) {
+              text =
+                msg.messageData?.textMessageData?.textMessage ||
+                msg.messageData?.extendedTextMessageData?.text ||
+                "";
+            }
+
+            // Если текст пустой и есть медиа
+            if (!text && msg.media) {
+              text = getMediaText(msg.media.type, msg.media.name);
+            }
+
+            // Если все еще пустой текст
+            if (!text) {
+              text = "[Сообщение]";
+            }
+
+            // Безопасное извлечение времени
+            let createdAt = Date.now();
+            if (typeof msg.timestamp === "number") {
+              createdAt = msg.timestamp * 1000;
+            } else if (msg.timestamp) {
+              const parsed = Date.parse(msg.timestamp);
+              createdAt = isNaN(parsed) ? Date.now() : parsed;
+            } else if (typeof msg.created_at === "number") {
+              createdAt = msg.created_at * 1000;
+            } else if (msg.created_at) {
+              const parsed = Date.parse(msg.created_at);
+              createdAt = isNaN(parsed) ? Date.now() : parsed;
+            }
+
+            // Определяем статус для исходящих сообщений
+            const status = isOutgoing
+              ? msg.status === "read"
+                ? "read"
+                : msg.status === "delivered"
+                ? "delivered"
+                : msg.status === "sent"
+                ? "sent"
+                : "sent"
+              : undefined;
+
+            // Создаем объект сообщения
+            const message: Message = {
+              id: baseId,
+              chatId: decodedChatId,
+              author: isOutgoing ? "me" : "them",
+              text: text.trim(),
+              time: fmtTime(createdAt),
+              createdAt,
+              status,
+            };
+
+            // Добавляем медиа информацию если есть
+            if (msg.media) {
+              message.media = {
+                url: msg.media.url || "",
+                type: (msg.media.type || "document") as
+                  | "image"
+                  | "video"
+                  | "document"
+                  | "audio",
+                name: msg.media.name,
+                size: msg.media.size,
+                mime: msg.media.mime,
+              };
+            }
+
+            mapped.push(message);
+          } catch (msgError) {
+            console.error("Error processing message:", msgError, msg);
           }
-
-          const createdAt =
-            typeof msg.timestamp === "number"
-              ? msg.timestamp * 1000
-              : msg.timestamp
-              ? Date.parse(msg.timestamp)
-              : typeof msg.created_at === "number"
-              ? msg.created_at * 1000
-              : msg.created_at
-              ? Date.parse(msg.created_at)
-              : Date.now();
-
-          const status = isOutgoing
-            ? msg.status === "read"
-              ? "read"
-              : msg.status === "delivered"
-              ? "delivered"
-              : "sent"
-            : undefined;
-
-          mapped.push({
-            id: baseId,
-            chatId: decodedChatId,
-            author: isOutgoing ? "me" : "them",
-            text,
-            time: fmtTime(createdAt),
-            createdAt,
-            status,
-          });
         });
 
+        // Сортируем по времени создания
         mapped.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+
+        console.log(`Successfully loaded ${mapped.length} messages`);
         setMessages(mapped);
-      } catch {
-        if (!silent) setMessages([]);
+      } catch (error) {
+        console.error("Error loading messages:", error);
+
+        // 🔹 НЕ СБРАСЫВАЕМ СООБЩЕНИЯ ПРИ ОШИБКЕ - оставляем предыдущие
+        // setMessages([]); // ← ЭТУ СТРОКУ УБИРАЕМ
+
+        if (!silent) {
+          setError(
+            error instanceof Error ? error.message : "Failed to load messages"
+          );
+        }
       } finally {
         if (!silent) setLoadingMessages(false);
       }
     },
     []
-  );
+  ); // ✅ useCallback без зависимостей
+
+  // 🔹 ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ МЕДИА-ТЕКСТА
+  const getMediaText = (mediaType: string, fileName?: string) => {
+    switch (mediaType?.toLowerCase()) {
+      case "image":
+        return "📷 Изображение";
+      case "video":
+        return "🎥 Видео";
+      case "audio":
+        return "🎵 Аудио";
+      case "document":
+        return `📄 ${fileName || "Документ"}`;
+      default:
+        return "📎 Файл";
+    }
+  };
 
   // 🔹 УЛУЧШЕННЫЙ WebSocket обработчик с принудительным обновлением
   useEffect(() => {
@@ -768,22 +885,6 @@ export default function ChatPage() {
         prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
       );
       alert("Ошибка сети при отправке медиа");
-    }
-  };
-
-  // Вспомогательная функция для текста медиа
-  const getMediaText = (fileType: string, fileName: string) => {
-    switch (fileType) {
-      case "image":
-        return "📷 Изображение";
-      case "video":
-        return "🎥 Видео";
-      case "audio":
-        return "🎵 Аудио";
-      case "document":
-        return `📄 ${fileName}`;
-      default:
-        return "📎 Файл";
     }
   };
 

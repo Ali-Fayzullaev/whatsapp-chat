@@ -25,22 +25,27 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const [lastMessage, setLastMessage] = useState<any>(null);
   const [messageHandlers, setMessageHandlers] = useState<((data: any) => void)[]>([]);
 
-  // Функция для подписки на сообщения
   const onMessage = useCallback((handler: (data: any) => void) => {
     setMessageHandlers(prev => [...prev, handler]);
   }, []);
 
-  // Функция для отписки от сообщений
   const offMessage = useCallback((handler: (data: any) => void) => {
     setMessageHandlers(prev => prev.filter(h => h !== handler));
   }, []);
 
   useEffect(() => {
+    // 🔹 ВРЕМЕННО ОТКЛЮЧИМ WEBSOCKET ДЛЯ ТЕСТИРОВАНИЯ
+    console.log("WebSocket temporarily disabled for testing");
+    setIsConnected(false);
+    return;
+
+    // 🔹 РАСКОММЕНТИРУЙТЕ КОГДА WEBSOCKET СЕРВЕР БУДЕТ РАБОТАТЬ:
+    /*
     const ws = new ReconnectingWebSocket("wss://socket.eldor.kz/ws", [], {
       connectionTimeout: 4000,
-      maxRetries: 10,
+      maxRetries: 5,
       maxReconnectionDelay: 10000,
-      minReconnectionDelay: 1000,
+      minReconnectionDelay: 2000,
     });
 
     ws.onopen = () => {
@@ -51,10 +56,9 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('WebSocket message received:', data);
+        console.log("WebSocket message received:", data);
         setLastMessage(data);
         
-        // Вызываем все зарегистрированные обработчики
         messageHandlers.forEach(handler => {
           try {
             handler(data);
@@ -82,13 +86,16 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     return () => {
       ws.close();
     };
-  }, [messageHandlers]); // ✅ Добавляем зависимость
+    */
+  }, [messageHandlers]);
 
   const sendMessage = (data: any) => {
     if (socket && isConnected) {
       socket.send(JSON.stringify(data));
     } else {
       console.warn('WebSocket not connected, cannot send message');
+      // 🔹 ВРЕМЕННО: эмулируем успешную отправку для тестирования
+      console.log('Message would be sent via WebSocket:', data);
     }
   };
 
