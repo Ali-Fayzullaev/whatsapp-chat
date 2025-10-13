@@ -6,25 +6,27 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Paperclip, Send, X, Image, File, Video } from "lucide-react";
+import { Paperclip, Send, X, Image as ImageIcon, File, Video } from "lucide-react";
 import { useState, useRef } from "react";
-import { MediaFile } from "./types";
+
+interface MediaFile {
+  file: File;
+  type: "image" | "video" | "document" | "audio";
+  previewUrl?: string;
+}
 
 export function Composer({
   draft,
   setDraft,
   onSend,
-  onSendMedia,
+  onFileSelect, // 🔹 ИЗМЕНЕНО: передаем напрямую файл
   disabled,
   placeholder,
 }: {
   draft: string;
   setDraft: (v: string) => void;
   onSend: () => void;
-  onSendMedia?: (
-    file: File,
-    type: "image" | "video" | "document" | "audio"
-  ) => void; // 🔹 ОБНОВЛЕННЫЙ ТИП
+  onFileSelect?: (file: File) => void; // 🔹 УПРОЩЕНО
   disabled?: boolean;
   placeholder?: string;
 }) {
@@ -35,25 +37,21 @@ export function Composer({
     if (disabled) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (mediaFiles.length > 0) {
-        // 🔹 ИСПРАВЛЕНО: передаем оба параметра
-        mediaFiles.forEach((media) => {
-          onSendMedia?.(media.file, media.type);
-        });
-        setMediaFiles([]);
-      } else {
-        onSend();
-      }
+      handleSendClick();
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
+
+    console.log("Files selected:", files.length);
 
     const newMediaFiles: MediaFile[] = [];
 
     Array.from(files).forEach((file) => {
+      console.log("Processing file:", file.name, file.type, file.size);
+      
       const type = getFileType(file.type);
       const mediaFile: MediaFile = {
         file,
@@ -64,10 +62,9 @@ export function Composer({
     });
 
     setMediaFiles((prev) => [...prev, ...newMediaFiles]);
-    e.target.value = "";
+    e.target.value = ""; // Очищаем input
   };
 
-  // 🔹 ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ ТИПА ФАЙЛА
   const getFileType = (
     mimeType: string
   ): "image" | "video" | "document" | "audio" => {
@@ -88,14 +85,28 @@ export function Composer({
     });
   };
 
-  const handleSendClick = () => {
+  const handleSendClick = async () => {
+    if (disabled) return;
+
+    // 🔹 ИСПРАВЛЕНО: Отправляем медиа-файлы по одному
     if (mediaFiles.length > 0) {
-      // 🔹 ПЕРЕДАЕМ ОБА ПАРАМЕТРА
-      mediaFiles.forEach((media) => {
-        onSendMedia?.(media.file, media.type);
+      console.log("Sending media files:", mediaFiles.length);
+      
+      for (const media of mediaFiles) {
+        console.log("Sending file:", media.file.name);
+        onFileSelect?.(media.file);
+      }
+      
+      // Очищаем превью и файлы
+      mediaFiles.forEach(media => {
+        if (media.previewUrl) {
+          URL.revokeObjectURL(media.previewUrl);
+        }
       });
       setMediaFiles([]);
-    } else {
+    } 
+    // Если есть текст, отправляем его
+    else if (draft.trim()) {
       onSend();
     }
   };
