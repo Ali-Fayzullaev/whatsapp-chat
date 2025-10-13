@@ -3,7 +3,7 @@ class ApiConfig {
   private static instance: ApiConfig;
   private baseUrl = "https://socket.eldor.kz";
   private accessToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImZ1bGxfbmFtZSI6InRlc3QiLCJ1c2VyX2lkIjoiMTIiLCJleHAiOjE3NjAzNDMyNjZ9.ae267oB34uPcfhecxSS7PH603HIc7OzdIbQKexMFTbQ";
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImZ1bGxfbmFtZSI6InRlc3QiLCJ1c2VyX2lkIjoiMTJgIiwiZXhwIjoxNzYwMzQ3NjA4fQ.bZzVrB1tzwCQQnBhMW65kz2P54nqY1hGLVMj0PXtwXQ";
   private refreshToken =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImZ1bGxfbmFtZSI6InRlc3QiLCJ1c2VyX2lkIjoiMTQiLCJleHAiOjE3NjA5NDA4MTAsInR5cGUiOiJyZWZyZXNoIn0.oIr8dyR2qzI2XxYu7hcl8WNG32ABY35RhVzJDuQv2Xg";
   private constructor() {}
