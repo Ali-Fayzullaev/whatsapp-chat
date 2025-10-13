@@ -1,47 +1,33 @@
 // src/app/api/whatsapp/chats/route.ts
 import { NextRequest } from 'next/server';
+import { apiConfig } from "@/lib/api-config";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     console.log('Fetching chats from API...');
     
-    const res = await fetch('https://socket.eldor.kz/chats', {
+    const apiUrl = `${apiConfig.getBaseUrl()}/api/chats`;
+    console.log('API URL:', apiUrl);
+    
+    const res = await fetch(apiUrl, {
       cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
-      }
+      headers: apiConfig.getHeaders(),
     });
     
     console.log('API response status:', res.status);
     
     if (!res.ok) {
       const errorText = await res.text();
-      console.error('API error response:', errorText);
-      
-      // 🔹 ВОЗВРАЩАЕМ ПУСТОЙ МАССИВ ПРИ ОШИБКЕ
+      console.error('API error:', errorText);
       return Response.json([]);
     }
     
     const data = await res.json();
     console.log('API response data:', data);
     
-    let chats = [];
-    
-    if (Array.isArray(data)) {
-      chats = data;
-    } else if (Array.isArray(data?.items)) {
-      chats = data.items;
-    } else {
-      console.warn('Unexpected API response structure:', data);
-      chats = [];
-    }
-    
-    console.log('Processed chats count:', chats.length);
-    
-    return Response.json(chats);
+    return Response.json(data);
   } catch (error) {
     console.error('API fetch error:', error);
-    // 🔹 ВОЗВРАЩАЕМ ПУСТОЙ МАССИВ ПРИ ОШИБКЕ
     return Response.json([]);
   }
 }

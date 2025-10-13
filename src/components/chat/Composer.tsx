@@ -1,8 +1,11 @@
-// src/components/chat/Composer.tsx
 "use client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Paperclip, Send, X, Image, File, Video } from "lucide-react";
 import { useState, useRef } from "react";
 import { MediaFile } from "./types";
@@ -18,7 +21,10 @@ export function Composer({
   draft: string;
   setDraft: (v: string) => void;
   onSend: () => void;
-  onSendMedia?: (file: File, type: string) => void;
+  onSendMedia?: (
+    file: File,
+    type: "image" | "video" | "document" | "audio"
+  ) => void; // 🔹 ОБНОВЛЕННЫЙ ТИП
   disabled?: boolean;
   placeholder?: string;
 }) {
@@ -30,8 +36,8 @@ export function Composer({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (mediaFiles.length > 0) {
-        // Если есть медиа, отправляем сначала их
-        mediaFiles.forEach(media => {
+        // 🔹 ИСПРАВЛЕНО: передаем оба параметра
+        mediaFiles.forEach((media) => {
           onSendMedia?.(media.file, media.type);
         });
         setMediaFiles([]);
@@ -46,30 +52,33 @@ export function Composer({
     if (!files) return;
 
     const newMediaFiles: MediaFile[] = [];
-    
-    Array.from(files).forEach(file => {
+
+    Array.from(files).forEach((file) => {
       const type = getFileType(file.type);
       const mediaFile: MediaFile = {
         file,
         type,
-        previewUrl: type === 'image' ? URL.createObjectURL(file) : undefined
+        previewUrl: type === "image" ? URL.createObjectURL(file) : undefined,
       };
       newMediaFiles.push(mediaFile);
     });
 
-    setMediaFiles(prev => [...prev, ...newMediaFiles]);
-    e.target.value = ''; // Сбрасываем input
+    setMediaFiles((prev) => [...prev, ...newMediaFiles]);
+    e.target.value = "";
   };
 
-  const getFileType = (mimeType: string): "image" | "video" | "document" | "audio" => {
-    if (mimeType.startsWith('image/')) return 'image';
-    if (mimeType.startsWith('video/')) return 'video';
-    if (mimeType.startsWith('audio/')) return 'audio';
-    return 'document';
+  // 🔹 ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ ТИПА ФАЙЛА
+  const getFileType = (
+    mimeType: string
+  ): "image" | "video" | "document" | "audio" => {
+    if (mimeType.startsWith("image/")) return "image";
+    if (mimeType.startsWith("video/")) return "video";
+    if (mimeType.startsWith("audio/")) return "audio";
+    return "document";
   };
 
   const removeMediaFile = (index: number) => {
-    setMediaFiles(prev => {
+    setMediaFiles((prev) => {
       const newFiles = [...prev];
       if (newFiles[index].previewUrl) {
         URL.revokeObjectURL(newFiles[index].previewUrl!);
@@ -81,13 +90,12 @@ export function Composer({
 
   const handleSendClick = () => {
     if (mediaFiles.length > 0) {
-      // Отправляем медиафайлы
-      mediaFiles.forEach(media => {
+      // 🔹 ПЕРЕДАЕМ ОБА ПАРАМЕТРА
+      mediaFiles.forEach((media) => {
         onSendMedia?.(media.file, media.type);
       });
       setMediaFiles([]);
     } else {
-      // Отправляем текстовое сообщение
       onSend();
     }
   };
@@ -101,19 +109,19 @@ export function Composer({
         <div className="mb-3 flex flex-wrap gap-2">
           {mediaFiles.map((media, index) => (
             <div key={index} className="relative group">
-              {media.type === 'image' && media.previewUrl ? (
+              {media.type === "image" && media.previewUrl ? (
                 <div className="w-16 h-16 rounded-lg border overflow-hidden">
-                  <img 
-                    src={media.previewUrl} 
-                    alt="Preview" 
+                  <img
+                    src={media.previewUrl}
+                    alt="Preview"
                     className="w-full h-full object-cover"
                   />
                 </div>
               ) : (
                 <div className="w-16 h-16 rounded-lg border flex items-center justify-center bg-muted">
-                  {media.type === 'video' && <Video className="h-6 w-6" />}
-                  {media.type === 'audio' && <File className="h-6 w-6" />}
-                  {media.type === 'document' && <File className="h-6 w-6" />}
+                  {media.type === "video" && <Video className="h-6 w-6" />}
+                  {media.type === "audio" && <File className="h-6 w-6" />}
+                  {media.type === "document" && <File className="h-6 w-6" />}
                 </div>
               )}
               <button
@@ -140,7 +148,7 @@ export function Composer({
           accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
           className="hidden"
         />
-        
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

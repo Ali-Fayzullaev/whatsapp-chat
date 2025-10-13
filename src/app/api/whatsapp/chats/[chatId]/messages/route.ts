@@ -1,5 +1,6 @@
 // src/app/api/whatsapp/chats/[chatId]/messages/route.ts
 import { NextRequest } from "next/server";
+import { apiConfig } from "@/lib/api-config";
 
 export async function GET(
   req: NextRequest,
@@ -11,17 +12,13 @@ export async function GET(
   
   try {
     const decodedChatId = decodeURIComponent(chatId);
-    console.log('Decoded chat ID:', decodedChatId);
     
-    // 🔹 ПРОВЕРЬТЕ ПРАВИЛЬНЫЙ URL ВАШЕГО API
-    const apiUrl = `https://socket.eldor.kz/chats/${decodedChatId}/messages`;
+    const apiUrl = `${apiConfig.getBaseUrl()}/api/chats/${decodedChatId}/messages`;
     console.log('Fetching from URL:', apiUrl);
     
     const res = await fetch(apiUrl, {
       cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
-      }
+      headers: apiConfig.getHeaders(),
     });
 
     console.log('Messages API response status:', res.status);
@@ -30,7 +27,6 @@ export async function GET(
       const errorText = await res.text();
       console.error('Messages API error:', errorText);
       
-      // 🔹 ВОЗВРАЩАЕМ ПУСТОЙ МАССИВ ЕСЛИ ЧАТ НЕ НАЙДЕН
       if (res.status === 404) {
         return Response.json([]);
       }
@@ -39,12 +35,9 @@ export async function GET(
     }
 
     const data = await res.json();
-    console.log('Messages API response data:', data);
-    
     return Response.json(data);
   } catch (error) {
     console.error('Messages fetch error:', error);
-    // 🔹 ВОЗВРАЩАЕМ ПУСТОЙ МАССИВ ПРИ ОШИБКЕ
     return Response.json([]);
   }
 }

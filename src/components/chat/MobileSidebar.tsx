@@ -32,7 +32,7 @@ export function MobileSidebar({
 }: MobileSidebarProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="p-0 w-[85vw] max-w-[400px]">
+      <SheetContent side="left" className="p-0 w-[85vw] max-w-[400px] bb">
         <SheetHeader className="sr-only">
           <SheetTitle>Чаты</SheetTitle>
         </SheetHeader>

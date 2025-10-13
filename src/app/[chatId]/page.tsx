@@ -13,6 +13,7 @@ import { useWebSocket } from "@/providers/WebSocketProvider";
 import { MobileSidebar } from "@/components/chat/MobileSidebar";
 import { Menu, RefreshCw } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { apiConfig } from "@/lib/api-config";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -26,6 +27,22 @@ export default function ChatPage() {
     : null;
 
   const chatId = rawChatId ? decodeURIComponent(rawChatId) : null;
+
+  if (!chatId) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg font-semibold mb-2">Чат не найден</div>
+          <p className="text-muted-foreground mb-4">
+            Неверный идентификатор чата
+          </p>
+          <Button onClick={() => router.push("/")}>
+            Вернуться к списку чатов
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const [hiddenPhones, setHiddenPhones] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -777,116 +794,297 @@ export default function ChatPage() {
     }
   };
 
-  // В ChatPage компоненте добавьте функцию отправки медиа
-  const handleSendMedia = async (file: File, fileType: string) => {
-    if (!chatId) {
-      console.log("Cannot send media: no chatId");
+  // 🔹 ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ ВЫБОРА ФАЙЛА
+  const handleFileSelect = async (file: File) => {
+    console.log("=== FILE SELECTED ===");
+    console.log("File details:", {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    });
+
+    // Проверка размера
+    if (file.size > 50 * 1024 * 1024) {
+      alert("Файл слишком большой (максимум 50MB)");
       return;
     }
 
-    const now = Date.now();
-    const tempMsgId = crypto.randomUUID();
+    // Проверка типа
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "video/mp4",
+      "video/avi",
+      "video/mov",
+      "audio/mpeg",
+      "audio/mp3",
+      "audio/wav",
+      "application/pdf",
+    ];
 
-    // Оптимистичное сообщение для медиа
-    const optimistic: Message = {
-      id: tempMsgId,
-      chatId,
-      author: "me",
-      text: getMediaText(fileType, file.name),
-      time: fmtTime(now),
-      createdAt: now,
-      status: "sent",
-      media: {
-        url: URL.createObjectURL(file),
-        type: fileType as "image" | "video" | "document" | "audio",
-        name: file.name,
-        size: file.size,
-        mime: file.type,
-      },
+    if (!allowedTypes.includes(file.type)) {
+      alert("Неподдерживаемый тип файла");
+      return;
+    }
+
+    // 🔹 ОПРЕДЕЛЯЕМ ТИП ФАЙЛА
+    const getFileType = (
+      mimeType: string
+    ): "image" | "video" | "document" | "audio" => {
+      if (mimeType.startsWith("image/")) return "image";
+      if (mimeType.startsWith("video/")) return "video";
+      if (mimeType.startsWith("audio/")) return "audio";
+      return "document";
     };
 
-    const stick = isNearBottom();
-    setMessages((prev) =>
-      [...prev, optimistic].sort(
-        (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
-      )
-    );
-    if (stick) setTimeout(scrollToBottom, 40);
+    const fileType = getFileType(file.type);
 
     try {
-      let realChatId = chatId;
-
-      // Если это временный чат, создаем реальный (как в handleSend)
-      if (isTempChat && tempPhone) {
-        // ... код создания чата из handleSend ...
-      }
-
-      console.log("=== SENDING MEDIA TO REAL CHAT ===");
-      console.log("Real chat ID:", realChatId);
-      console.log("File type:", fileType);
-      console.log("File name:", file.name);
-
-      // Создаем FormData для отправки
-      const formData = new FormData();
-      formData.append("file", file);
-      // Можно добавить caption если нужно
-      // formData.append('caption', 'Текст к медиа');
-
-      const sendRes = await fetch(
-        `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send/media`,
-        {
-          method: "POST",
-          body: formData,
-        }
+      console.log(
+        "Calling handleSendMedia with file:",
+        file.name,
+        "type:",
+        fileType
       );
+      await handleSendMedia(file, fileType); // 🔹 ПЕРЕДАЕМ ОБА ПАРАМЕТРА
+    } catch (error) {
+      console.error("Failed to send media:", error);
+      alert(
+        "Ошибка при отправке файла: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
+    }
+  };
 
-      let sendData;
-      try {
-        sendData = await sendRes.json();
-      } catch (parseError) {
-        console.error("Failed to parse send media response:", parseError);
-        sendData = { error: "Invalid response" };
-      }
+  const handleSendMedia = async (
+  file: File,
+  fileType: "image" | "video" | "document" | "audio"
+) => {
+  if (!chatId) {
+    console.log("Cannot send media: no chatId");
+    return;
+  }
 
-      if (sendRes.ok) {
-        console.log("Media sent successfully");
+  const now = Date.now();
+  const tempMsgId = crypto.randomUUID();
+
+  // Оптимистичное сообщение
+  const optimistic: Message = {
+    id: tempMsgId,
+    chatId,
+    author: "me",
+    text: getMediaText(fileType, file.name),
+    time: fmtTime(now),
+    createdAt: now,
+    status: "sent",
+    media: {
+      url: URL.createObjectURL(file),
+      type: fileType,
+      name: file.name,
+      size: file.size,
+      mime: file.type,
+    },
+  };
+
+  const stick = isNearBottom();
+  setMessages((prev) =>
+    [...prev, optimistic].sort(
+      (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
+    )
+  );
+  if (stick) setTimeout(scrollToBottom, 40);
+
+  try {
+    let realChatId = chatId;
+
+    // Обработка временного чата для медиа
+    if (isTempChat && tempPhone) {
+      console.log("=== CREATING REAL CHAT FROM TEMP FOR MEDIA ===");
+
+      if (tempPhone.length !== 11) {
+        const errorMsg = `Неверная длина номера: ${tempPhone.length} цифр. Должно быть 11.`;
+        console.error(errorMsg);
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === tempMsgId
-              ? {
-                  ...m,
-                  id: sendData?.id_message || tempMsgId,
-                  status: "delivered",
-                  // Обновляем URL на серверный если есть
-                  media: m.media
-                    ? {
-                        ...m.media,
-                        url: sendData?.media_url || m.media.url,
-                      }
-                    : m.media,
-                }
-              : m
+            m.id === tempMsgId ? { ...m, status: "failed" } : m
           )
         );
-        setTimeout(() => {
-          loadMessages(realChatId, true);
-          loadChats(true);
-        }, 1000);
-      } else {
-        console.error("Failed to send media:", sendData);
-        setMessages((prev) =>
-          prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
-        );
-        alert(sendData?.error || "Не удалось отправить медиа");
+        alert(errorMsg);
+        return;
       }
-    } catch (error) {
-      console.error("Send media error:", error);
+
+      const apiPhone = `${tempPhone}@c.us`;
+      console.log("API phone for media:", apiPhone);
+
+      try {
+        const start = await fetch("/api/whatsapp/chats/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: apiPhone }),
+        });
+
+        console.log("Start chat API response status:", start.status);
+
+        let startData;
+        try {
+          startData = await start.json();
+        } catch (parseError) {
+          console.error("Failed to parse start chat response:", parseError);
+          const textResponse = await start.text();
+          startData = {
+            error: "Invalid JSON response",
+            raw: textResponse,
+            status: start.status,
+          };
+        }
+
+        if (!start.ok || !startData?.chat_id) {
+          let errorMessage = "Не удалось создать чат для отправки медиа";
+          if (startData?.error) errorMessage += `: ${startData.error}`;
+
+          console.error("Failed to create chat for media:", errorMessage);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === tempMsgId ? { ...m, status: "failed" } : m
+            )
+          );
+          alert(errorMessage);
+          return;
+        }
+
+        realChatId = String(startData.chat_id);
+        console.log("Real chat created for media with ID:", realChatId);
+
+        // Обновляем состояние и делаем навигацию
+        setChats((prev) => [
+          ...prev,
+          {
+            id: realChatId,
+            chat_id: realChatId,
+            is_group: false,
+            name: tempPhone,
+            phone: tempPhone,
+            lastMessage: "📎 Медиа",
+            time: fmtTime(now),
+            unread: 0,
+            avatarFallback: tempPhone.slice(0, 2),
+            avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
+              tempPhone
+            )}`,
+            updatedAt: now,
+          },
+        ]);
+
+        router.replace(`/${realChatId}`);
+      } catch (networkError) {
+        console.error("Network error creating chat for media:", networkError);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempMsgId ? { ...m, status: "failed" } : m
+          )
+        );
+        alert("Ошибка сети при создании чата для медиа");
+        return;
+      }
+    }
+
+    console.log("=== SENDING FILE DIRECTLY TO CHAT ===");
+    console.log("Real chat ID:", realChatId);
+    console.log("File details:", {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      fileType: fileType
+    });
+
+    // 🔹 ОТПРАВЛЯЕМ ФАЙЛ НАПРЯМУЮ В ЧАТ
+    const formData = new FormData();
+    formData.append("file", file);
+    
+    // Добавляем caption если нужно
+    formData.append("caption", file.name);
+
+    console.log("FormData contents:");
+    for (const [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        console.log(`- ${key}:`, {
+          name: value.name,
+          type: value.type,
+          size: value.size
+        });
+      } else {
+        console.log(`- ${key}:`, value);
+      }
+    }
+
+    const sendMediaRes = await fetch(
+      `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send/media`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+
+    console.log("Send media response status:", sendMediaRes.status);
+    console.log("Send media response ok:", sendMediaRes.ok);
+
+    let sendMediaData;
+    try {
+      sendMediaData = await sendMediaRes.json();
+      console.log("Send media response data:", sendMediaData);
+    } catch (parseError) {
+      console.error("Failed to parse send media response:", parseError);
+      const textResponse = await sendMediaRes.text();
+      console.error("Raw send media response:", textResponse);
+      sendMediaData = { 
+        error: "Invalid JSON response", 
+        raw: textResponse,
+        status: sendMediaRes.status 
+      };
+    }
+
+    if (sendMediaRes.ok) {
+      console.log("Media sent successfully:", sendMediaData);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempMsgId
+            ? {
+                ...m,
+                id: sendMediaData?.id_message || tempMsgId,
+                status: "delivered",
+                // Обновляем URL на серверный если есть
+                media: m.media
+                  ? {
+                      ...m.media,
+                      url: sendMediaData?.media_url || sendMediaData?.url || m.media.url,
+                    }
+                  : m.media,
+              }
+            : m
+        )
+      );
+      setTimeout(() => {
+        loadMessages(realChatId, true);
+        loadChats(true);
+      }, 1000);
+    } else {
+      console.error("Failed to send media:", sendMediaData);
       setMessages((prev) =>
         prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
       );
-      alert("Ошибка сети при отправке медиа");
+      alert(sendMediaData?.error || "Не удалось отправить медиа");
     }
-  };
+
+  } catch (error) {
+    console.error("Send media network error:", error);
+    setMessages((prev) =>
+      prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
+    );
+    alert("Ошибка сети при отправке медиа: " + (error instanceof Error ? error.message : 'Unknown error'));
+  }
+};
 
   // 🔹 Вспомогательная функция для HTTP отправки
   const sendViaHttp = async (
