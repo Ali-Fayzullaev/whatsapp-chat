@@ -56,7 +56,7 @@ export default function ChatPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-
+  const [isLoading, setIsLoading] = useState(false);
   // 🔹 WebSocket хуки ТОЛЬКО ОДИН РАЗ наверху
   const { isConnected, sendMessage, onMessage, offMessage } = useWebSocket();
 
@@ -372,21 +372,25 @@ export default function ChatPage() {
   ); // ✅ useCallback без зависимостей
 
   // 🔹 ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ МЕДИА-ТЕКСТА
-  const getMediaText = (mediaType: string, fileName?: string) => {
-    switch (mediaType?.toLowerCase()) {
-      case "image":
+  // В вашем компоненте обновите функцию:
+const getMediaText = (mediaType: string, fileName?: string) => {
+  switch (mediaType?.toLowerCase()) {
+    case "image":
+      return "📷 Изображение";
+    case "video":
+      return "🎥 Видео";
+    case "audio":
+      return "🎵 Аудио";
+    case "document":
+      // Если это изображение, но пришло как документ
+      if (fileName?.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
         return "📷 Изображение";
-      case "video":
-        return "🎥 Видео";
-      case "audio":
-        return "🎵 Аудио";
-      case "document":
-        return `📄 ${fileName || "Документ"}`;
-      default:
-        return "📎 Файл";
-    }
-  };
-
+      }
+      return `📄 ${fileName || "Документ"}`;
+    default:
+      return "📎 Файл";
+  }
+};
   // 🔹 УЛУЧШЕННЫЙ WebSocket обработчик с принудительным обновлением
   useEffect(() => {
     const handleWebSocketMessage = (message: any) => {
@@ -833,8 +837,7 @@ export default function ChatPage() {
     ];
 
     if (!allowedTypes.includes(file.type)) {
-      alert("Неподдерживаемый тип файла");
-      return;
+      throw new Error(`Неподдерживаемый тип файла: ${file.type}`);
     }
 
     try {
@@ -848,7 +851,7 @@ export default function ChatPage() {
     }
   };
 
-  // 🔹 ИСПРАВЛЕННАЯ функция отправки медиа
+  // 🔹 ИСПРАВЛЕННАЯ функция отправки медиа с лучшей обработкой ошибок
   const handleSendMedia = async (file: File) => {
     if (!chatId) {
       console.log("Cannot send media: no chatId");
@@ -961,10 +964,28 @@ export default function ChatPage() {
       console.log("Real chat ID:", realChatId);
       console.log("File:", file.name, file.type, file.size);
 
-      // 🔹 СОЗДАЕМ FormData
+      // 🔹 СОЗДАЕМ FormData с правильной структурой
       const formData = new FormData();
       formData.append("file", file);
       formData.append("caption", file.name);
+      console.log("Sending FormData to API...");
+
+      // 🔹 ДОБАВЬТЕ ТЕСТИРОВАНИЕ ПЕРЕД ОСНОВНОЙ ОТПРАВКОЙ
+      console.log("=== TESTING UPLOAD FIRST ===");
+      const testResult = await fetch("/api/whatsapp/test-upload", {
+        method: "POST",
+        body: formData,
+      });
+      const testData = await testResult.json();
+      console.log("Test upload result:", testData);
+
+      if (!testResult.ok) {
+        throw new Error(`Test upload failed: ${JSON.stringify(testData)}`);
+      }
+
+      console.log("=== PROCEEDING WITH ACTUAL UPLOAD ===");
+
+      // 🔹 ОТПРАВЛЯЕМ через API
 
       console.log("Sending FormData to API...");
 
@@ -974,28 +995,39 @@ export default function ChatPage() {
         {
           method: "POST",
           body: formData,
-          // НЕ указываем Content-Type - браузер сам добавит с boundary
         }
       );
 
       console.log("Send media response status:", sendMediaRes.status);
 
-      if (!sendMediaRes.ok) {
-        const errorText = await sendMediaRes.text();
-        console.error("Send media error response:", errorText);
+      // 🔹 УЛУЧШЕННАЯ ОБРАБОТКА ОТВЕТА
+      let responseData;
+      try {
+        const responseText = await sendMediaRes.text();
+        console.log("Send media response text:", responseText);
 
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { error: errorText };
-        }
-
-        throw new Error(errorData?.error || `HTTP ${sendMediaRes.status}`);
+        responseData = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error("Failed to parse send media response:", parseError);
+        throw new Error("Неверный формат ответа от сервера");
       }
 
-      const sendMediaData = await sendMediaRes.json();
-      console.log("Media sent successfully:", sendMediaData);
+      if (!sendMediaRes.ok) {
+        console.error("Send media API error:", responseData);
+
+        // 🔹 ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ОБ ОШИБКЕ 422
+        if (sendMediaRes.status === 422) {
+          const errorDetails =
+            responseData.details ||
+            responseData.error ||
+            "Неизвестная ошибка валидации";
+          throw new Error(`Ошибка валидации: ${JSON.stringify(errorDetails)}`);
+        }
+
+        throw new Error(responseData.error || `HTTP ${sendMediaRes.status}`);
+      }
+
+      console.log("Media sent successfully:", responseData);
 
       // Обновляем сообщение
       setMessages((prev) =>
@@ -1003,14 +1035,14 @@ export default function ChatPage() {
           m.id === tempMsgId
             ? {
                 ...m,
-                id: sendMediaData?.id_message || tempMsgId,
+                id: responseData?.id_message || tempMsgId,
                 status: "delivered",
                 media: m.media
                   ? {
                       ...m.media,
                       url:
-                        sendMediaData?.media_url ||
-                        sendMediaData?.url ||
+                        responseData?.media_url ||
+                        responseData?.url ||
                         m.media.url,
                     }
                   : m.media,
@@ -1032,10 +1064,11 @@ export default function ChatPage() {
         prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
       );
 
-      alert(
-        "Ошибка при отправке медиа: " +
-          (error instanceof Error ? error.message : "Unknown error")
-      );
+      // 🔹 БОЛЕЕ ИНФОРМАТИВНОЕ СООБЩЕНИЕ ОБ ОШИБКЕ
+      const errorMessage =
+        error instanceof Error ? error.message : "Неизвестная ошибка";
+
+      alert(`Ошибка при отправке файла "${file.name}": ${errorMessage}`);
     }
   };
 

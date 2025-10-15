@@ -2,10 +2,8 @@
 class ApiConfig {
   private static instance: ApiConfig;
   private baseUrl = "https://socket.eldor.kz";
-  private accessToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImZ1bGxfbmFtZSI6InRlc3QiLCJ1c2VyX2lkIjoiMTJgIiwiZXhwIjoxNzYwMzQ3NjA4fQ.bZzVrB1tzwCQQnBhMW65kz2P54nqY1hGLVMj0PXtwXQ";
-  private refreshToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImZ1bGxfbmFtZSI6InRlc3QiLCJ1c2VyX2lkIjoiMTQiLCJleHAiOjE3NjA5NDA4MTAsInR5cGUiOiJyZWZyZXNoIn0.oIr8dyR2qzI2XxYu7hcl8WNG32ABY35RhVzJDuQv2Xg";
+  private accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImZ1bGxfbmFtZSI6InRlc3QiLCJ1c2VyX2lkIjoiMTIiLCJleHAiOjE3NjA1MTY4NTZ9.LgrsY0FsGIueedKQ2Xgffg3SYXq6oxI2Y5KebvbdcQc";
+
   private constructor() {}
 
   static getInstance(): ApiConfig {
@@ -21,21 +19,35 @@ class ApiConfig {
 
   getHeaders(): HeadersInit {
     return {
-      Authorization: `Bearer ${this.accessToken}`,
+      "Authorization": `Bearer ${this.accessToken}`,
       "Content-Type": "application/json",
     };
   }
 
-  // 🔹 ИСПРАВЛЕННЫЙ МЕТОД ДЛЯ FormData
+  // 🔹 ИСПРАВЛЕННЫЙ МЕТОД ДЛЯ FORMDATA
   getHeadersForFormData(): HeadersInit {
     return {
-      Authorization: `Bearer ${this.accessToken}`,
+      "Authorization": `Bearer ${this.accessToken}`,
       // НЕ добавляем Content-Type - браузер сам установит с boundary
     };
   }
 
   getAccessToken(): string {
     return this.accessToken;
+  }
+
+  // 🔹 ДОБАВЬТЕ МЕТОД ДЛЯ ПРОВЕРКИ ТОКЕНА
+  async validateToken(): Promise<boolean> {
+    try {
+      const testUrl = `${this.baseUrl}/api/chats`;
+      const res = await fetch(testUrl, {
+        headers: this.getHeaders(),
+      });
+      return res.ok;
+    } catch (error) {
+      console.error("Token validation failed:", error);
+      return false;
+    }
   }
 }
 

@@ -2,9 +2,6 @@
 import { NextRequest } from "next/server";
 import { apiConfig } from "@/lib/api-config";
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-
 export async function POST(
   req: NextRequest,
   { params }: { params: { chatId: string } }
@@ -15,7 +12,6 @@ export async function POST(
   console.log("Chat ID:", chatId);
 
   try {
-    // Получаем FormData с файлом
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const caption = formData.get('caption') as string | null;
@@ -28,154 +24,207 @@ export async function POST(
     });
 
     if (!file) {
-      console.error("No file provided");
       return Response.json({ error: "Файл обязателен" }, { status: 400 });
     }
 
-    // Проверка размера (50MB)
-    if (file.size > 50 * 1024 * 1024) {
-      return Response.json({ error: "Файл слишком большой (максимум 50MB)" }, { status: 400 });
-    }
-
     const decodedId = decodeURIComponent(chatId);
-    console.log("Decoded chat ID:", decodedId);
 
-    // 🔹 ИСПРАВЛЕНО: Правильный эндпоинт для медиа
-    const url = `${apiConfig.getBaseUrl()}/api/chats/${decodedId}/send/media`;
-    console.log("External API URL:", url);
-
-    // Создаем новый FormData для внешнего API
-    const externalFormData = new FormData();
+    // 🔹 1. Загружаем файл на ваш сервер С АВТОРИЗАЦИЕЙ
+    const uploadResult = await uploadFileToYourServer(file);
     
-    // 🔹 ВАЖНО: Правильное создание Blob из файла
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const blob = new Blob([arrayBuffer], { type: file.type });
-      externalFormData.append('file', blob, file.name);
-      console.log("File converted to Blob successfully");
-    } catch (blobError) {
-      console.error("Failed to convert file to Blob:", blobError);
+    if (!uploadResult.success) {
+      console.error("File upload failed:", uploadResult.error);
+      return Response.json({ error: uploadResult.error }, { status: 400 });
+    }
+
+    console.log("File uploaded successfully:", uploadResult);
+
+    // 🔹 2. Преобразуем path в полный URL
+    const fullUrl = `${apiConfig.getBaseUrl()}${uploadResult.path}`;
+    console.log("Full file URL:", fullUrl);
+
+    // 🔹 3. Проверяем доступность файла по URL
+    const fileAccessible = await checkFileAccessibility(fullUrl);
+    if (!fileAccessible) {
       return Response.json({ 
-        error: "Ошибка обработки файла",
-        details: blobError instanceof Error ? blobError.message : "Unknown error"
-      }, { status: 500 });
+        error: "Файл недоступен по полученному URL. Возможно, нужен другой домен для файлов." 
+      }, { status: 400 });
     }
+
+    // 🔹 4. Отправляем медиа-сообщение через Green API
+    const sendResult = await sendMediaToGreenAPI(decodedId, fullUrl, file.name, caption);
+
+    if (!sendResult.success) {
+      return Response.json({ error: sendResult.error }, { status: 400 });
+    }
+
+    console.log("Media sent successfully:", sendResult.data);
+    return Response.json(sendResult.data);
+
+  } catch (error) {
+    console.error("Send media error:", error);
+    return Response.json({ 
+      error: "Ошибка отправки медиа",
+      details: error instanceof Error ? error.message : "Unknown error"
+    }, { status: 500 });
+  }
+}
+
+// 🔹 ФУНКЦИЯ ЗАГРУЗКИ ФАЙЛА НА ВАШ СЕРВЕР С АВТОРИЗАЦИЕЙ
+async function uploadFileToYourServer(file: File): Promise<{success: boolean; path?: string; error?: string}> {
+  try {
+    console.log("Uploading file to your server with authorization...");
+
+    // Определяем endpoint для загрузки в зависимости от типа файла
+    let uploadEndpoint: string;
     
-    // Добавляем caption если есть
-    if (caption && caption.trim()) {
-      externalFormData.append('caption', caption.trim());
+    if (file.type.startsWith('image/')) {
+      uploadEndpoint = '/api/files/upload-image';
+    } else if (file.type.startsWith('video/')) {
+      uploadEndpoint = '/api/files/upload-video';
+    } else if (file.type.startsWith('audio/')) {
+      uploadEndpoint = '/api/files/upload-audio';
+    } else {
+      uploadEndpoint = '/api/files/upload-document';
     }
 
-    console.log("Sending media to external API...");
+    const uploadUrl = `${apiConfig.getBaseUrl()}${uploadEndpoint}`;
+    console.log("Upload URL:", uploadUrl);
 
-    // 🔹 ИСПРАВЛЕНО: Правильные заголовки
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // 🔹 ДОБАВЛЯЕМ AUTHORIZATION HEADER
     const headers = apiConfig.getHeadersForFormData();
-    console.log("Request headers:", Object.keys(headers));
+    console.log("Upload headers:", headers);
 
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method: "POST",
-        body: externalFormData,
-        headers: headers,
-      });
-      console.log("External API response received");
-    } catch (fetchError) {
-      console.error("Fetch error:", fetchError);
-      return Response.json({ 
-        error: "Ошибка соединения с API",
-        details: fetchError instanceof Error ? fetchError.message : "Network error"
-      }, { status: 500 });
-    }
+    const res = await fetch(uploadUrl, {
+      method: "POST",
+      body: formData,
+      headers: headers, // 🔹 ОТПРАВЛЯЕМ С АВТОРИЗАЦИЕЙ
+    });
 
-    console.log("External API status:", res.status);
-    console.log("External API status text:", res.statusText);
-
-    // Читаем ответ
-    const responseText = await res.text();
-    console.log("External API response length:", responseText.length);
-    
-    if (responseText.length > 0) {
-      console.log("Response preview (first 200 chars):", responseText.substring(0, 200));
-    }
-    
-    let data;
-    let parseError = null;
-    
-    try {
-      if (responseText.trim()) {
-        data = JSON.parse(responseText);
-        console.log("External API parsed response:", data);
-      } else {
-        console.log("External API returned empty response");
-        data = { success: true }; // Если пустой ответ, считаем успешным
-      }
-    } catch (error) {
-      parseError = error;
-      console.error("Failed to parse API response:", error);
-      
-      // Проверяем HTML ответ
-      if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
-        const titleMatch = responseText.match(/<title>(.*?)<\/title>/i);
-        const h1Match = responseText.match(/<h1[^>]*>(.*?)<\/h1>/i);
-        
-        console.error("Received HTML response instead of JSON");
-        console.error("HTML title:", titleMatch ? titleMatch[1] : "N/A");
-        console.error("HTML h1:", h1Match ? h1Match[1] : "N/A");
-        
-        data = {
-          error: "API вернул HTML вместо JSON",
-          html_title: titleMatch ? titleMatch[1] : null,
-          html_h1: h1Match ? h1Match[1] : null,
-          status: res.status,
-        };
-      } else if (responseText.toLowerCase().includes('internal server error')) {
-        console.error("Internal server error from API");
-        data = {
-          error: "Внутренняя ошибка сервера API",
-          raw_message: responseText.substring(0, 200),
-          status: res.status,
-        };
-      } else {
-        data = {
-          error: "Невалидный JSON ответ от API",
-          raw_preview: responseText.substring(0, 200),
-          status: res.status,
-        };
-      }
-    }
+    console.log("Upload response status:", res.status);
 
     if (!res.ok) {
-      console.error("External API returned error:", {
-        status: res.status,
-        statusText: res.statusText,
-        data: data,
-        parseError: parseError ? "Failed to parse" : "Parsed OK"
-      });
-
-      return Response.json(
-        {
-          error: data.error || `API Error: ${res.status} ${res.statusText}`,
-          details: data,
-          status: res.status,
-        },
-        { status: res.status }
-      );
+      const errorText = await res.text();
+      console.error("Upload error response:", errorText);
+      return { 
+        success: false, 
+        error: `Upload failed: ${res.status} - ${errorText}` 
+      };
     }
 
-    console.log("Media sent successfully:", data);
-    return Response.json(data);
-    
+    const data = await res.json();
+    console.log("Upload response data:", data);
+
+    // Проверяем структуру ответа
+    if (data.success && data.path) {
+      return { success: true, path: data.path };
+    } else {
+      return { 
+        success: false, 
+        error: "Invalid upload response: " + JSON.stringify(data) 
+      };
+    }
+
   } catch (error) {
-    console.error("Send media network error:", error);
-    console.error("Error stack:", error instanceof Error ? error.stack : "No stack");
+    console.error("Upload error:", error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "Upload failed" 
+    };
+  }
+}
+
+// 🔹 ФУНКЦИЯ ПРОВЕРКИ ДОСТУПНОСТИ ФАЙЛА
+async function checkFileAccessibility(fileUrl: string): Promise<boolean> {
+  try {
+    console.log("Checking file accessibility:", fileUrl);
     
-    return Response.json(
-      {
-        error: "Ошибка сети",
-        details: error instanceof Error ? error.message : "Unknown error",
+    const res = await fetch(fileUrl, { method: 'HEAD' });
+    console.log("File accessibility check status:", res.status);
+    
+    return res.ok;
+  } catch (error) {
+    console.error("File accessibility check failed:", error);
+    return false;
+  }
+}
+
+// 🔹 ФУНКЦИЯ ОТПРАВКИ МЕДИА В GREEN API
+async function sendMediaToGreenAPI(
+  chatId: string, 
+  fileUrl: string, 
+  fileName: string, 
+  caption: string | null
+): Promise<{success: boolean; data?: any; error?: string}> {
+  try {
+    console.log("Sending media to Green API...");
+    console.log("File URL:", fileUrl);
+    console.log("File name:", fileName);
+
+    // 🔹 ПРАВИЛЬНЫЙ PAYLOAD ДЛЯ GREEN API
+    const payload = {
+      chatId: chatId,
+      url: fileUrl, // Полный URL к файлу
+      fileName: fileName,
+      caption: caption || fileName,
+    };
+
+    console.log("Green API payload:", payload);
+
+    const url = `${apiConfig.getBaseUrl()}/api/chats/${chatId}/send/media`;
+    console.log("Sending to:", url);
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...apiConfig.getHeaders(),
+        "Content-Type": "application/json",
       },
-      { status: 500 }
-    );
+      body: JSON.stringify(payload),
+    });
+
+    console.log("Green API response status:", res.status);
+    console.log("Green API response status text:", res.statusText);
+
+    const responseText = await res.text();
+    console.log("Green API response text:", responseText);
+
+    if (!res.ok) {
+      let errorData;
+      try {
+        errorData = responseText ? JSON.parse(responseText) : { error: `HTTP ${res.status}` };
+      } catch {
+        errorData = { error: responseText };
+      }
+      
+      console.error("Green API send failed:", errorData);
+      return { 
+        success: false, 
+        error: `Green API Error: ${res.status} - ${JSON.stringify(errorData)}` 
+      };
+    }
+
+    let data;
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch (parseError) {
+      console.error("Failed to parse Green API response:", parseError);
+      return { 
+        success: false, 
+        error: "Invalid JSON response from Green API" 
+      };
+    }
+
+    return { success: true, data };
+
+  } catch (error) {
+    console.error("Green API send error:", error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "Green API send failed" 
+    };
   }
 }

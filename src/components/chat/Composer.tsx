@@ -85,36 +85,44 @@ export function Composer({
     });
   };
 
-  const handleSendClick = async () => {
-    if (disabled) return;
+ // В Composer компоненте исправьте функцию handleSendClick:
+const handleSendClick = async () => {
+  if (disabled) return;
 
-    // 🔹 ИСПРАВЛЕНО: Отправляем медиа-файлы по одному
-    if (mediaFiles.length > 0) {
-      console.log("Sending media files:", mediaFiles.length);
-      
-      for (const media of mediaFiles) {
+  // Отправляем медиа-файлы
+  if (mediaFiles.length > 0) {
+    console.log("Sending media files:", mediaFiles.length);
+    
+    for (const media of mediaFiles) {
+      try {
         console.log("Sending file:", media.file.name);
-        onFileSelect?.(media.file);
+        await onFileSelect?.(media.file);
+      } catch (error) {
+        console.error("Failed to send file:", media.file.name, error);
+        // Можно добавить уведомление об ошибке
       }
-      
-      // Очищаем превью и файлы
-      mediaFiles.forEach(media => {
-        if (media.previewUrl) {
-          URL.revokeObjectURL(media.previewUrl);
-        }
-      });
-      setMediaFiles([]);
-    } 
-    // Если есть текст, отправляем его
-    else if (draft.trim()) {
-      onSend();
     }
-  };
+    
+    // Очищаем превью и файлы после отправки
+    mediaFiles.forEach(media => {
+      if (media.previewUrl) {
+        URL.revokeObjectURL(media.previewUrl);
+      }
+    });
+    setMediaFiles([]);
+  } 
+  
+  // Отправляем текстовое сообщение
+  if (draft.trim()) {
+    onSend();
+    setDraft(""); // Очищаем поле ввода
+  }
+};
 
   const canSend = !disabled && (!!draft.trim() || mediaFiles.length > 0);
 
   return (
-    <div className="p-4 border-t bg-white">
+    <div className="p-4 border-t bg-white dark:bg-muted">
       {/* Превью медиафайлов */}
       {mediaFiles.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">

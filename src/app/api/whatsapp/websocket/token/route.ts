@@ -16,6 +16,8 @@ export async function GET() {
     
     console.log("Token API status:", res.status);
     
+    
+
     if (!res.ok) {
       const errorText = await res.text();
       console.error("Token API error:", errorText);

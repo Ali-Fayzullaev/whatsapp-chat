@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Chat } from "./types";
 import { HeaderMenu } from "./menus";
 import { useState } from "react";
+import Link from "next/link";
 
 // Функция для форматирования времени
 const formatTime = (timestamp: string) => {
@@ -105,7 +106,7 @@ export function Sidebar({
 
   return (
     <div className="flex h-full w-full flex-col">
-      <div className="flex items-center justify-between p-3">
+      <div className="flex items-center justify-between p-3 dark:bg-muted">
         <div className="flex items-center gap-2">
           <Avatar className="h-9 w-9">
             <AvatarFallback>Я</AvatarFallback>
@@ -145,7 +146,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="p-3">
+      <div className="p-3 dark:bg-muted">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-60" />
           <Input
@@ -176,14 +177,15 @@ export function Sidebar({
               }
 
               return (
+                <Link key={chatId} href={`/${encodeURIComponent(chatId)}`}>
+                
                 <button
-                  key={chatId}
                   onClick={() => {
                     console.log("Sidebar: selecting chat:", chatId);
                     setSelectedId(chatId);
                   }}
                   className={[
-                    "w-full flex items-center gap-3 p-3 rounded-xl transition-colors",
+                    "w-full flex items-center gap-3 p-3 rounded-xl transition-colors dark:hover:bg-white/10",
                     chatId === selectedId ? "bg-accent" : "hover:bg-accent/60",
                   ].join(" ")}
                 >
@@ -222,6 +224,7 @@ export function Sidebar({
                     </Badge>
                   ) : null}
                 </button>
+                </Link>
               );
             })
           )}
