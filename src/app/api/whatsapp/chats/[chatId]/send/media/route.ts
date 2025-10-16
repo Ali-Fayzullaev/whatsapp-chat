@@ -13,14 +13,18 @@ export async function POST(
 
   try {
     const formData = await req.formData();
-    const file = formData.get('file') as File;
-    const caption = formData.get('caption') as string | null;
+    const file = formData.get("file") as File;
+    const caption = formData.get("caption") as string | null;
+    const replyToMessageId = formData.get("reply_to_message_id") as
+      | string
+      | null; // 🔹 ДОБАВЛЕНО
 
     console.log("Media file details:", {
       name: file?.name,
       type: file?.type,
       size: file?.size,
-      caption: caption
+      caption: caption,
+      replyToMessageId: replyToMessageId, // 🔹 Логируем
     });
 
     if (!file) {
@@ -31,7 +35,7 @@ export async function POST(
 
     // 🔹 1. Загружаем файл на ваш сервер С АВТОРИЗАЦИЕЙ
     const uploadResult = await uploadFileToYourServer(file);
-    
+
     if (!uploadResult.success) {
       console.error("File upload failed:", uploadResult.error);
       return Response.json({ error: uploadResult.error }, { status: 400 });
@@ -46,13 +50,23 @@ export async function POST(
     // 🔹 3. Проверяем доступность файла по URL
     const fileAccessible = await checkFileAccessibility(fullUrl);
     if (!fileAccessible) {
-      return Response.json({ 
-        error: "Файл недоступен по полученному URL. Возможно, нужен другой домен для файлов." 
-      }, { status: 400 });
+      return Response.json(
+        {
+          error:
+            "Файл недоступен по полученному URL. Возможно, нужен другой домен для файлов.",
+        },
+        { status: 400 }
+      );
     }
 
     // 🔹 4. Отправляем медиа-сообщение через Green API
-    const sendResult = await sendMediaToGreenAPI(decodedId, fullUrl, file.name, caption);
+    const sendResult = await sendMediaToGreenAPI(
+      decodedId,
+      fullUrl,
+      file.name,
+      caption,
+      replyToMessageId // 🔹 ДОБАВЛЕНО
+    );
 
     if (!sendResult.success) {
       return Response.json({ error: sendResult.error }, { status: 400 });
@@ -60,39 +74,43 @@ export async function POST(
 
     console.log("Media sent successfully:", sendResult.data);
     return Response.json(sendResult.data);
-
   } catch (error) {
     console.error("Send media error:", error);
-    return Response.json({ 
-      error: "Ошибка отправки медиа",
-      details: error instanceof Error ? error.message : "Unknown error"
-    }, { status: 500 });
+    return Response.json(
+      {
+        error: "Ошибка отправки медиа",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    );
   }
 }
 
 // 🔹 ФУНКЦИЯ ЗАГРУЗКИ ФАЙЛА НА ВАШ СЕРВЕР С АВТОРИЗАЦИЕЙ
-async function uploadFileToYourServer(file: File): Promise<{success: boolean; path?: string; error?: string}> {
+async function uploadFileToYourServer(
+  file: File
+): Promise<{ success: boolean; path?: string; error?: string }> {
   try {
     console.log("Uploading file to your server with authorization...");
 
     // Определяем endpoint для загрузки в зависимости от типа файла
     let uploadEndpoint: string;
-    
-    if (file.type.startsWith('image/')) {
-      uploadEndpoint = '/api/files/upload-image';
-    } else if (file.type.startsWith('video/')) {
-      uploadEndpoint = '/api/files/upload-video';
-    } else if (file.type.startsWith('audio/')) {
-      uploadEndpoint = '/api/files/upload-audio';
+
+    if (file.type.startsWith("image/")) {
+      uploadEndpoint = "/api/files/upload-image";
+    } else if (file.type.startsWith("video/")) {
+      uploadEndpoint = "/api/files/upload-video";
+    } else if (file.type.startsWith("audio/")) {
+      uploadEndpoint = "/api/files/upload-audio";
     } else {
-      uploadEndpoint = '/api/files/upload-document';
+      uploadEndpoint = "/api/files/upload-document";
     }
 
     const uploadUrl = `${apiConfig.getBaseUrl()}${uploadEndpoint}`;
     console.log("Upload URL:", uploadUrl);
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
 
     // 🔹 ДОБАВЛЯЕМ AUTHORIZATION HEADER
     const headers = apiConfig.getHeadersForFormData();
@@ -109,9 +127,9 @@ async function uploadFileToYourServer(file: File): Promise<{success: boolean; pa
     if (!res.ok) {
       const errorText = await res.text();
       console.error("Upload error response:", errorText);
-      return { 
-        success: false, 
-        error: `Upload failed: ${res.status} - ${errorText}` 
+      return {
+        success: false,
+        error: `Upload failed: ${res.status} - ${errorText}`,
       };
     }
 
@@ -122,17 +140,16 @@ async function uploadFileToYourServer(file: File): Promise<{success: boolean; pa
     if (data.success && data.path) {
       return { success: true, path: data.path };
     } else {
-      return { 
-        success: false, 
-        error: "Invalid upload response: " + JSON.stringify(data) 
+      return {
+        success: false,
+        error: "Invalid upload response: " + JSON.stringify(data),
       };
     }
-
   } catch (error) {
     console.error("Upload error:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Upload failed" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Upload failed",
     };
   }
 }
@@ -141,10 +158,10 @@ async function uploadFileToYourServer(file: File): Promise<{success: boolean; pa
 async function checkFileAccessibility(fileUrl: string): Promise<boolean> {
   try {
     console.log("Checking file accessibility:", fileUrl);
-    
-    const res = await fetch(fileUrl, { method: 'HEAD' });
+
+    const res = await fetch(fileUrl, { method: "HEAD" });
     console.log("File accessibility check status:", res.status);
-    
+
     return res.ok;
   } catch (error) {
     console.error("File accessibility check failed:", error);
@@ -152,25 +169,31 @@ async function checkFileAccessibility(fileUrl: string): Promise<boolean> {
   }
 }
 
-// 🔹 ФУНКЦИЯ ОТПРАВКИ МЕДИА В GREEN API
 async function sendMediaToGreenAPI(
-  chatId: string, 
-  fileUrl: string, 
-  fileName: string, 
-  caption: string | null
-): Promise<{success: boolean; data?: any; error?: string}> {
+  chatId: string,
+  fileUrl: string,
+  fileName: string,
+  caption: string | null,
+  replyToMessageId?: string | null // 🔹 ДОБАВЛЕНО
+): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
     console.log("Sending media to Green API...");
     console.log("File URL:", fileUrl);
     console.log("File name:", fileName);
+    console.log("Reply to message ID:", replyToMessageId);
 
-    // 🔹 ПРАВИЛЬНЫЙ PAYLOAD ДЛЯ GREEN API
-    const payload = {
+    // 🔹 ОБНОВЛЕННЫЙ PAYLOAD ДЛЯ GREEN API
+    const payload: any = {
       chatId: chatId,
-      url: fileUrl, // Полный URL к файлу
+      url: fileUrl,
       fileName: fileName,
       caption: caption || fileName,
     };
+
+    // 🔹 ДОБАВЛЯЕМ информацию об ответе если есть
+    if (replyToMessageId) {
+      payload.replyToMessageId = replyToMessageId;
+    }
 
     console.log("Green API payload:", payload);
 
@@ -195,15 +218,17 @@ async function sendMediaToGreenAPI(
     if (!res.ok) {
       let errorData;
       try {
-        errorData = responseText ? JSON.parse(responseText) : { error: `HTTP ${res.status}` };
+        errorData = responseText
+          ? JSON.parse(responseText)
+          : { error: `HTTP ${res.status}` };
       } catch {
         errorData = { error: responseText };
       }
-      
+
       console.error("Green API send failed:", errorData);
-      return { 
-        success: false, 
-        error: `Green API Error: ${res.status} - ${JSON.stringify(errorData)}` 
+      return {
+        success: false,
+        error: `Green API Error: ${res.status} - ${JSON.stringify(errorData)}`,
       };
     }
 
@@ -212,19 +237,18 @@ async function sendMediaToGreenAPI(
       data = responseText ? JSON.parse(responseText) : {};
     } catch (parseError) {
       console.error("Failed to parse Green API response:", parseError);
-      return { 
-        success: false, 
-        error: "Invalid JSON response from Green API" 
+      return {
+        success: false,
+        error: "Invalid JSON response from Green API",
       };
     }
 
     return { success: true, data };
-
   } catch (error) {
     console.error("Green API send error:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Green API send failed" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Green API send failed",
     };
   }
 }

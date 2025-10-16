@@ -20,7 +20,7 @@ import { HeaderMenu } from "./menus";
 import { useState } from "react";
 import Link from "next/link";
 
-// Функция для форматирования времени
+// Функция для форматирования времени (оставляем без изменений)
 const formatTime = (timestamp: string) => {
   const date = new Date(timestamp);
   const now = new Date();
@@ -38,7 +38,7 @@ const formatTime = (timestamp: string) => {
   }
 };
 
-// Функция для получения текста последнего сообщения
+// Функция для получения текста последнего сообщения (оставляем без изменений)
 const getLastMessageText = (lastMessage: any) => {
   if (!lastMessage) return "Нет сообщений";
   
@@ -105,22 +105,32 @@ export function Sidebar({
   );
 
   return (
-    <div className="flex h-full w-full flex-col">
-      <div className="flex items-center justify-between p-3 dark:bg-muted">
-        <div className="flex items-center gap-2">
-          <Avatar className="h-9 w-9">
-            <AvatarFallback>Я</AvatarFallback>
+    <div className="flex h-full w-full flex-col bg-white dark:bg-gray-900">
+      {/* 💬 WhatsApp Style: Хедер (верхняя полоса) */}
+      <div 
+        // В веб-версии это может быть светло-серый фон, а акценты зеленые.
+        // Используем светло-серый фон (bg-gray-50) с зелеными акцентами для кнопок.
+        className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700"
+      >
+        <div className="flex items-center gap-3">
+          {/* Аватар пользователя - делаем больше */}
+          <Avatar className="h-10 w-10">
+            <AvatarFallback className="bg-green-500 text-white">Я</AvatarFallback>
+            <AvatarImage src="/your-profile-pic.jpg" alt="Мой профиль" />
           </Avatar>
-          {!compact && <div className="text-sm font-medium">Мой профиль</div>}
+          {/* Убираем "Мой профиль" для чистоты, как в WhatsApp Web */}
         </div>
         <div className="flex items-center gap-1">
+          {/* Кнопка нового чата */}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Новый чат">
+              {/* Зеленый акцент на иконках в шапке */}
+              <Button variant="ghost" size="icon" aria-label="Новый чат" className="text-gray-500 hover:text-green-600">
                 <Plus className="h-5 w-5" />
               </Button>
             </DialogTrigger>
             <DialogContent>
+              {/* Диалоговое окно оставляем как есть, оно универсально */}
               <DialogHeader>
                 <DialogTitle>Новый чат</DialogTitle>
               </DialogHeader>
@@ -133,6 +143,8 @@ export function Sidebar({
                   autoFocus
                 />
                 <Button
+                  // Зеленая кнопка для акцента
+                  className="bg-green-500 hover:bg-green-600"
                   onClick={handleCreate}
                   disabled={isCreating || !newChatPhone.trim()}
                 >
@@ -145,85 +157,97 @@ export function Sidebar({
           <HeaderMenu />
         </div>
       </div>
-
-      <div className="p-3 dark:bg-muted">
+      
+      {/* 💬 WhatsApp Style: Поиск (светло-серый, скругленный) */}
+      <div className="p-2 border-r border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-60" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-60 text-gray-500" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Поиск чатов"
-            className="pl-9 rounded-2xl"
+            // Стилизуем Input в стиле WhatsApp: скругление, светло-серый фон, нет рамки
+            className="pl-9 rounded-lg bg-gray-100 dark:bg-gray-800 border-none focus-visible:ring-0"
           />
         </div>
       </div>
-      <Separator />
+      {/* Убираем <Separator />, так как боковая панель уже имеет границы */}
 
       {/* Список чатов */}
-      <ScrollArea className="flex-1 chat-background">
-        <div className="p-2">
+      {/* Удаляем класс chat-background, чтобы не было конфликтов со стилями */}
+      <ScrollArea className="flex-1 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700"> 
+        <div className="flex flex-col">
           {filteredChats.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
               {query ? "Чаты не найдены" : "Нет чатов"}
             </div>
           ) : (
             filteredChats.map((chat) => {
-              // Используем chat_id как идентификатор
               const chatId = chat.id || chat.chat_id;
               
               if (!chatId) {
-                console.warn("Chat без id:", chat);
                 return null;
               }
 
               return (
-                <Link key={chatId} href={`/${encodeURIComponent(chatId)}`}>
-                
-                <button
+                <Link 
+                  key={chatId} 
+                  href={`/${encodeURIComponent(chatId)}`}
+                  className={[
+                    "w-full block",
+                    chatId === selectedId ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800/70",
+                  ].join(" ")}
                   onClick={() => {
-                    console.log("Sidebar: selecting chat:", chatId);
                     setSelectedId(chatId);
                   }}
-                  className={[
-                    "w-full flex items-center gap-3 p-3 rounded-xl transition-colors dark:hover:bg-white/10",
-                    chatId === selectedId ? "bg-accent" : "hover:bg-accent/60",
-                  ].join(" ")}
                 >
-                  <Avatar className="h-11 w-11">
-                    {chat.avatarUrl ? (
-                      <AvatarImage src={chat.avatarUrl} alt={chat.name} />
-                    ) : (
-                      <AvatarFallback>
-                        {chat.avatarFallback || 
-                         (typeof chat.name === 'string' ? chat.name.charAt(0) : '?')}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  
-                  <div className="min-w-0 flex-1 text-left">
-                    <div className="flex items-center gap-2">
-                      <div className="truncate font-medium">
-                        {chat.name || chatId.replace('@c.us', '')}
+                  <button
+                    className="w-full flex items-center gap-3 py-2 px-4 transition-colors border-b border-gray-100 dark:border-gray-800"
+                  >
+                    {/* Аватар - делаем больше */}
+                    <Avatar className="h-12 w-12 flex-shrink-0">
+                      {chat.avatarUrl ? (
+                        <AvatarImage src={chat.avatarUrl} alt={chat.name} />
+                      ) : (
+                        <AvatarFallback>
+                          {chat.avatarFallback || 
+                            (typeof chat.name === 'string' ? chat.name.charAt(0) : '?')}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                    
+                    <div className="min-w-0 flex-1 text-left flex flex-col justify-center h-full">
+                      {/* Верхняя строка */}
+                      <div className="flex items-baseline justify-between">
+                        <div className="truncate font-semibold text-gray-900 dark:text-gray-100 text-base">
+                          {chat.name || chatId.replace('@c.us', '')}
+                        </div>
+                        <div className="ml-auto text-xs text-muted-foreground">
+                          {chat.lastMessage?.timestamp ? 
+                            formatTime(chat.lastMessage.timestamp) : ''}
+                        </div>
                       </div>
-                      <div className="ml-auto text-xs text-muted-foreground">
-                        {chat.lastMessage?.timestamp ? 
-                         formatTime(chat.lastMessage.timestamp) : ''}
+                      
+                      {/* Нижняя строка */}
+                      <div className="flex items-center justify-between pt-0.5">
+                        <div 
+                          className={`text-sm truncate flex-1 pr-2 ${chat.unread ? 'text-gray-900 dark:text-gray-200' : 'text-muted-foreground'}`}
+                        >
+                          {getLastMessageText(chat.lastMessage)}
+                        </div>
+
+                        {/* 💬 WhatsApp Style: Зеленый значок непрочитанных сообщений */}
+                        {chat.unread ? (
+                          <Badge
+                            // Используем зеленый цвет для бэджа
+                            className="rounded-full h-5 w-5 flex items-center justify-center text-[10px] bg-green-500 hover:bg-green-600 text-white p-0"
+                          >
+                            {chat.unread}
+                          </Badge>
+                        ) : null}
                       </div>
                     </div>
-                    <div className="text-sm text-muted-foreground truncate">
-                      {getLastMessageText(chat.lastMessage)}
-                    </div>
-                  </div>
-                  
-                  {chat.unread ? (
-                    <Badge
-                      className="rounded-full px-2 py-0.5 text-[10px]"
-                      variant="default"
-                    >
-                      {chat.unread}
-                    </Badge>
-                  ) : null}
-                </button>
+                  </button>
                 </Link>
               );
             })

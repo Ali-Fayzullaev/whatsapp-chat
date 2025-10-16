@@ -1,212 +1,168 @@
+// src/components/chat/Composer.tsx
 "use client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Paperclip, Send, X, Image as ImageIcon, File, Video } from "lucide-react";
-import { useState, useRef } from "react";
 
-interface MediaFile {
-  file: File;
-  type: "image" | "video" | "document" | "audio";
-  previewUrl?: string;
+import { Button } from "@/components/ui/button";
+// Мы будем стилизовать Textarea, чтобы оно выглядело как стандартное поле ввода WhatsApp
+import { Textarea } from "@/components/ui/textarea"; 
+import { Paperclip, Send, X, Reply, Mic2Icon } from "lucide-react"; // Добавим Mic2Icon
+import { useRef, useEffect } from "react";
+import type { ReplyMessage } from "./types";
+
+interface ComposerProps {
+  draft: string;
+  setDraft: (draft: string) => void;
+  onSend: (text: string, replyTo?: ReplyMessage) => void;
+  onFileSelect: (file: File) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  replyingTo?: ReplyMessage | null;
+  onCancelReply?: () => void;
 }
 
 export function Composer({
   draft,
   setDraft,
   onSend,
-  onFileSelect, // 🔹 ИЗМЕНЕНО: передаем напрямую файл
+  onFileSelect,
   disabled,
-  placeholder,
-}: {
-  draft: string;
-  setDraft: (v: string) => void;
-  onSend: () => void;
-  onFileSelect?: (file: File) => void; // 🔹 УПРОЩЕНО
-  disabled?: boolean;
-  placeholder?: string;
-}) {
-  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
+  placeholder = "Введите сообщение...",
+  replyingTo,
+  onCancelReply,
+}: ComposerProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (disabled) return;
+  const handleSubmit = () => {
+    const text = draft.trim();
+    if (!text) return;
+
+    onSend(text, replyingTo || undefined);
+    setDraft("");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendClick();
+      handleSubmit();
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    console.log("Files selected:", files.length);
-
-    const newMediaFiles: MediaFile[] = [];
-
-    Array.from(files).forEach((file) => {
-      console.log("Processing file:", file.name, file.type, file.size);
-      
-      const type = getFileType(file.type);
-      const mediaFile: MediaFile = {
-        file,
-        type,
-        previewUrl: type === "image" ? URL.createObjectURL(file) : undefined,
-      };
-      newMediaFiles.push(mediaFile);
-    });
-
-    setMediaFiles((prev) => [...prev, ...newMediaFiles]);
-    e.target.value = ""; // Очищаем input
-  };
-
-  const getFileType = (
-    mimeType: string
-  ): "image" | "video" | "document" | "audio" => {
-    if (mimeType.startsWith("image/")) return "image";
-    if (mimeType.startsWith("video/")) return "video";
-    if (mimeType.startsWith("audio/")) return "audio";
-    return "document";
-  };
-
-  const removeMediaFile = (index: number) => {
-    setMediaFiles((prev) => {
-      const newFiles = [...prev];
-      if (newFiles[index].previewUrl) {
-        URL.revokeObjectURL(newFiles[index].previewUrl!);
-      }
-      newFiles.splice(index, 1);
-      return newFiles;
-    });
-  };
-
- // В Composer компоненте исправьте функцию handleSendClick:
-const handleSendClick = async () => {
-  if (disabled) return;
-
-  // Отправляем медиа-файлы
-  if (mediaFiles.length > 0) {
-    console.log("Sending media files:", mediaFiles.length);
-    
-    for (const media of mediaFiles) {
-      try {
-        console.log("Sending file:", media.file.name);
-        await onFileSelect?.(media.file);
-      } catch (error) {
-        console.error("Failed to send file:", media.file.name, error);
-        // Можно добавить уведомление об ошибке
-      }
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onFileSelect(file);
+      e.target.value = ""; // Сбрасываем input
     }
-    
-    // Очищаем превью и файлы после отправки
-    mediaFiles.forEach(media => {
-      if (media.previewUrl) {
-        URL.revokeObjectURL(media.previewUrl);
-      }
-    });
-    setMediaFiles([]);
-  } 
-  
-  // Отправляем текстовое сообщение
-  if (draft.trim()) {
-    onSend();
-    setDraft(""); // Очищаем поле ввода
-  }
-};
+  };
 
-  const canSend = !disabled && (!!draft.trim() || mediaFiles.length > 0);
+  useEffect(() => {
+    if (replyingTo && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [replyingTo]);
+
+  const hasText = draft.trim().length > 0;
 
   return (
-    <div className="p-4 border-t bg-white dark:bg-muted">
-      {/* Превью медиафайлов */}
-      {mediaFiles.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-2">
-          {mediaFiles.map((media, index) => (
-            <div key={index} className="relative group">
-              {media.type === "image" && media.previewUrl ? (
-                <div className="w-16 h-16 rounded-lg border overflow-hidden">
-                  <img
-                    src={media.previewUrl}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="w-16 h-16 rounded-lg border flex items-center justify-center bg-muted">
-                  {media.type === "video" && <Video className="h-6 w-6" />}
-                  {media.type === "audio" && <File className="h-6 w-6" />}
-                  {media.type === "document" && <File className="h-6 w-6" />}
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => removeMediaFile(index)}
-                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="h-3 w-3" />
-              </button>
-              <div className="text-xs mt-1 truncate max-w-16">
-                {media.file.name}
+    // 💬 WhatsApp Style: Отступы внизу, граница сверху
+    <div className="p-2 border-t border-gray-100 bg-white dark:bg-gray-900">
+      
+      {/* 💬 WhatsApp Style: Баннер ответа на сообщение - более мягкий дизайн */}
+      {replyingTo && (
+        <div className="mx-2 mb-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-xl border-l-4 border-green-500">
+          <div className="flex items-start justify-between">
+            <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+              <span className="text-xs font-semibold text-green-600 dark:text-green-400">
+                {replyingTo.author === "me" ? "Ваш" : "Ответ на сообщение"}
+              </span>
+              <div className="text-xs text-gray-700 dark:text-gray-300 truncate max-w-full">
+                {replyingTo.media ? (
+                  <span className="flex items-center gap-1">
+                    <Reply className="h-3 w-3 text-gray-500 flex-shrink-0" />
+                    {replyingTo.media.type === 'image' && '📷 Изображение'}
+                    {replyingTo.media.type === 'video' && '🎥 Видео'}
+                    {replyingTo.media.type === 'audio' && '🎵 Аудио'}
+                    {replyingTo.media.type === 'document' && '📄 Документ'}
+                    {replyingTo.media.name && ` • ${replyingTo.media.name}`}
+                  </span>
+                ) : (
+                  <span className="line-clamp-1">{replyingTo.text}</span>
+                )}
               </div>
             </div>
-          ))}
-        </div>
-      )}
-
-      <div className="flex items-end gap-3">
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileSelect}
-          multiple
-          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
-          className="hidden"
-        />
-
-        <Tooltip>
-          <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="flex-shrink-0"
-              aria-label="Прикрепить файл"
-              disabled={disabled}
-              onClick={() => fileInputRef.current?.click()}
+              className="h-6 w-6 flex-shrink-0 ml-2 text-gray-500 hover:bg-gray-200"
+              onClick={onCancelReply}
             >
-              <Paperclip className="h-5 w-5" />
+              <X className="h-3.5 w-3.5" />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>Прикрепить файл</TooltipContent>
-        </Tooltip>
+          </div>
+        </div>
+      )}
 
-        <Input
-          placeholder={placeholder ?? "Введите сообщение..."}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={handleKeyPress}
-          className="flex-1 rounded-2xl min-h-[44px] resize-none"
+      {/* 💬 WhatsApp Style: Основная строка ввода */}
+      <div className="flex items-end gap-2">
+        
+        {/* Обертка для поля ввода и кнопки вложения */}
+        <div className="flex-1 relative">
+          <Textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            disabled={disabled}
+            rows={1}
+            // 💬 WhatsApp Style: Закругленное, светло-серое поле
+            className={`
+              min-h-[44px] max-h-[120px] resize-none 
+              py-3 pl-4 pr-12 text-base 
+              rounded-3xl border-none shadow-sm 
+              bg-gray-100 dark:bg-gray-800 focus-visible:ring-0
+            `}
+          />
+          
+          {/* Кнопка прикрепления файла - позиционируем внутри Textarea */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled}
+            // 💬 WhatsApp Style: Позиционируем справа от текста
+            className="absolute right-1 bottom-1 h-10 w-10 text-gray-500 hover:bg-transparent"
+          >
+            <Paperclip className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* 💬 WhatsApp Style: Кнопка отправки / микрофона */}
+        <Button
+          onClick={hasText ? handleSubmit : () => console.log('Record audio...')} // Если есть текст, отправляем, иначе - записываем
           disabled={disabled}
-        />
+          size="icon"
+          // 💬 WhatsApp Style: Круглая, зеленая, большая кнопка
+          className={`
+            h-11 w-11 rounded-full flex-shrink-0 
+            ${hasText 
+              ? 'bg-green-500 hover:bg-green-600 text-white shadow-md' 
+              : 'bg-green-500 hover:bg-green-600 text-white shadow-md' // В WhatsApp всегда зеленая
+            }
+          `}
+        >
+          {hasText ? <Send className="h-5 w-5 -ml-px" /> : <Mic2Icon className="h-5 w-5" />}
+        </Button>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={handleSendClick}
-              size="icon"
-              className="rounded-full flex-shrink-0 bg-blue-500 hover:bg-blue-600"
-              aria-label="Отправить сообщение"
-              disabled={!canSend}
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Отправить</TooltipContent>
-        </Tooltip>
+        {/* Скрытый input для файлов */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+          multiple={false}
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+        />
       </div>
     </div>
   );

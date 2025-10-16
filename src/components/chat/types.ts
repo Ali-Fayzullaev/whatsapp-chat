@@ -1,11 +1,12 @@
 // src/components/chat/types.ts
+// src/components/chat/types.ts
 export interface Message {
   id: string;
   chatId: string;
   author: "me" | "them";
   text: string;
   time: string;
-  createdAt?: number;
+  createdAt: number;
   status?: "sent" | "delivered" | "read" | "failed";
   media?: {
     url: string;
@@ -14,8 +15,28 @@ export interface Message {
     size?: number;
     mime?: string;
   };
+
+  
+  replyTo?: {
+    id: string;
+    author: "me" | "them";
+    text: string;
+    media?: {
+      type: "image" | "video" | "document" | "audio";
+      name?: string;
+    };
+  };
 }
 
+export interface ReplyMessage {
+  id: string;
+  author: "me" | "them";
+  text: string;
+  media?: {
+    type: "image" | "video" | "document" | "audio";
+    name?: string;
+  };
+}
 export interface MediaFile {
   file: File;
   type: "image" | "video" | "document" | "audio";

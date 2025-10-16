@@ -5,15 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { Chat, Message } from "@/components/chat/types";
+import type { Chat, Message, ReplyMessage } from "@/components/chat/types";
 import { Sidebar } from "@/components/chat/Sidebar";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { Composer } from "@/components/chat/Composer";
 import { useWebSocket } from "@/providers/WebSocketProvider";
 import { MobileSidebar } from "@/components/chat/MobileSidebar";
-import { Menu, RefreshCw } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { apiConfig } from "@/lib/api-config";
+import { Menu, MessageCircleMore, MoreVertical, RefreshCw } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -63,6 +62,26 @@ export default function ChatPage() {
   // 🔹 Правильно определяем временный чат
   const isTempChat = !!chatId?.startsWith("temp:");
   const tempPhone = isTempChat ? chatId.replace("temp:", "") : null;
+
+  const [replyingTo, setReplyingTo] = useState<ReplyMessage | null>(null);
+  const handleCancelReply = () => {
+    setReplyingTo(null);
+  };
+
+  // 🔹 Функция для ответа на сообщение
+  const handleReplyToMessage = (message: Message) => {
+    setReplyingTo({
+      id: message.id,
+      author: message.author,
+      text: message.text,
+      media: message.media
+        ? {
+            type: message.media.type,
+            name: message.media.name,
+          }
+        : undefined,
+    });
+  };
 
   // Функции для скролла
   const isNearBottom = () => {
@@ -369,146 +388,56 @@ export default function ChatPage() {
       }
     },
     []
-  ); // ✅ useCallback без зависимостей
+  );
 
-  // 🔹 ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ МЕДИА-ТЕКСТА
-  // В вашем компоненте обновите функцию:
-const getMediaText = (mediaType: string, fileName?: string) => {
-  switch (mediaType?.toLowerCase()) {
-    case "image":
-      return "📷 Изображение";
-    case "video":
-      return "🎥 Видео";
-    case "audio":
-      return "🎵 Аудио";
-    case "document":
-      // Если это изображение, но пришло как документ
-      if (fileName?.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+  const getMediaText = (mediaType: string, fileName?: string) => {
+    switch (mediaType?.toLowerCase()) {
+      case "image":
         return "📷 Изображение";
-      }
-      return `📄 ${fileName || "Документ"}`;
-    default:
-      return "📎 Файл";
-  }
-};
-  // 🔹 УЛУЧШЕННЫЙ WebSocket обработчик с принудительным обновлением
+      case "video":
+        return "🎥 Видео";
+      case "audio":
+        return "🎵 Аудио";
+      case "document":
+        // Если это изображение, но пришло как документ
+        if (fileName?.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+          return "📷 Изображение";
+        }
+        return `📄 ${fileName || "Документ"}`;
+      default:
+        return "📎 Файл";
+    }
+  };
+
   useEffect(() => {
     const handleWebSocketMessage = (message: any) => {
       console.log("Processing WebSocket message:", message);
 
-      // Обработка нового входящего сообщения
+      // Обработка входящих медиа-сообщений
       if (
-        message.type === "new_message" ||
-        message.event === "message" ||
-        message.message
+        (message.type === "new_message" || message.event === "message") &&
+        message.media
       ) {
-        console.log(
-          "New message received for chat:",
-          message.chat_id || message.from
-        );
+        console.log("New media message received:", message);
 
         const messageChatId = message.chat_id || message.from;
 
-        // Если сообщение для текущего чата
         if (messageChatId === chatId) {
-          console.log("Message is for current chat, updating UI immediately");
-
-          setMessages((prev) => {
-            const newMessage: Message = {
-              id:
-                message.id_message ||
-                message.id ||
-                `ws-${Date.now()}-${Math.random()}`,
-              chatId: messageChatId,
-              author: "them",
-              text:
-                message.text ||
-                message.body ||
-                message.content ||
-                message.message ||
-                "[Сообщение]",
-              time: fmtTime(Date.now()),
-              createdAt: Date.now(),
-            };
-
-            // Проверяем, нет ли уже такого сообщения
-            if (prev.some((m) => m.id === newMessage.id)) {
-              console.log("Message already exists, skipping");
-              return prev;
-            }
-
-            console.log("Adding new message to state:", newMessage);
-            const updatedMessages = [...prev, newMessage].sort(
-              (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
-            );
-
-            // 🔹 ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ
-            setTimeout(() => {
-              scrollToBottom();
-            }, 50);
-
-            return updatedMessages;
-          });
-
-          // 🔹 СРАЗУ обновляем список чатов для этого сообщения
-          setTimeout(() => {
-            loadChats(true);
-          }, 100);
-        } else {
-          // 🔹 ВАЖНО: Если сообщение не для текущего чата, все равно обновляем список
-          console.log("Message for other chat, refreshing chats list");
-          setTimeout(() => {
-            loadChats(true);
-          }, 200);
-        }
-      }
-
-      // Обработка статусов сообщений
-      if (
-        message.type === "message_status" ||
-        message.event === "message_ack" ||
-        message.ack
-      ) {
-        console.log("Message status update:", message);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === message.id_message ||
-            m.id === message.temp_id ||
-            m.id === message.id
-              ? {
-                  ...m,
-                  status: getStatusFromAck(message.status || message.ack),
-                }
-              : m
-          )
-        );
-      }
-
-      // В WebSocket обработчике добавьте:
-      if (message.type === "new_message" && message.media) {
-        console.log("New media message received:", message);
-
-        if (message.chat_id === chatId) {
           setMessages((prev) => {
             const newMessage: Message = {
               id: message.id_message || `ws-${Date.now()}`,
-              chatId: message.chat_id,
+              chatId: messageChatId,
               author: "them",
-              text: getIncomingMediaText(
-                message.media?.type,
-                message.media?.name
-              ),
+              text: getIncomingMediaText(message.media),
               time: fmtTime(Date.now()),
               createdAt: Date.now(),
-              media: message.media
-                ? {
-                    url: message.media.url,
-                    type: message.media.type,
-                    name: message.media.name,
-                    size: message.media.size,
-                    mime: message.media.mime,
-                  }
-                : undefined,
+              media: {
+                url: message.media.url,
+                type: detectMediaTypeFromData(message.media), // 🔹 УЛУЧШЕННОЕ ОПРЕДЕЛЕНИЕ
+                name: message.media.name,
+                size: message.media.size,
+                mime: message.media.mime,
+              },
             };
 
             if (prev.some((m) => m.id === newMessage.id)) return prev;
@@ -521,40 +450,61 @@ const getMediaText = (mediaType: string, fileName?: string) => {
           setTimeout(scrollToBottom, 100);
         }
       }
+    };
 
-      // Вспомогательная функция
-      const getIncomingMediaText = (mediaType: string, fileName: string) => {
-        switch (mediaType) {
-          case "image":
+    // 🔹 УЛУЧШЕННАЯ функция определения типа медиа из данных
+    const detectMediaTypeFromData = (
+      mediaData: any
+    ): "image" | "video" | "audio" | "document" => {
+      // Если тип явно указан в данных
+      if (mediaData.type) {
+        return mediaData.type;
+      }
+
+      // Определяем по MIME типу
+      if (mediaData.mime) {
+        if (mediaData.mime.startsWith("image/")) return "image";
+        if (mediaData.mime.startsWith("video/")) return "video";
+        if (mediaData.mime.startsWith("audio/")) return "audio";
+      }
+
+      // Определяем по имени файла
+      if (mediaData.name) {
+        const ext = mediaData.name.split(".").pop()?.toLowerCase();
+        const imageExts = ["jpg", "jpeg", "png", "gif", "webp", "bmp"];
+        const videoExts = ["mp4", "avi", "mov", "mkv", "webm"];
+        const audioExts = ["mp3", "wav", "ogg", "aac", "m4a"];
+
+        if (imageExts.includes(ext)) return "image";
+        if (videoExts.includes(ext)) return "video";
+        if (audioExts.includes(ext)) return "audio";
+      }
+
+      return "document";
+    };
+
+    // 🔹 УЛУЧШЕННАЯ функция для текста медиа-сообщений
+    const getIncomingMediaText = (mediaData: any) => {
+      const mediaType = detectMediaTypeFromData(mediaData);
+
+      switch (mediaType) {
+        case "image":
+          return "📷 Изображение";
+        case "video":
+          return "🎥 Видео";
+        case "audio":
+          return "🎵 Аудио";
+        case "document":
+          // Если это изображение, но пришло как документ
+          if (
+            mediaData.name?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ||
+            mediaData.mime?.startsWith("image/")
+          ) {
             return "📷 Изображение";
-          case "video":
-            return "🎥 Видео";
-          case "audio":
-            return "🎵 Аудио";
-          case "document":
-            return `📄 ${fileName || "Документ"}`;
-          default:
-            return "📎 Файл";
-        }
-      };
-
-      // Обработка подтверждения отправки
-      if (
-        (message.type === "message_sent" || message.event === "message_sent") &&
-        message.temp_id
-      ) {
-        console.log("Message sent confirmation:", message);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === message.temp_id
-              ? {
-                  ...m,
-                  id: message.id_message || m.id,
-                  status: "delivered",
-                }
-              : m
-          )
-        );
+          }
+          return `📄 ${mediaData.name || "Документ"}`;
+        default:
+          return "📎 Файл";
       }
     };
 
@@ -596,8 +546,7 @@ const getMediaText = (mediaType: string, fileName?: string) => {
   };
 
   // ✅ ИСПРАВЛЕННАЯ отправка сообщений
-  const handleSend = async () => {
-    const text = draft.trim();
+  const handleSend = async (text: string, replyTo?: ReplyMessage) => {
     if (!text || !chatId) {
       console.log("Cannot send: no text or chatId");
       return;
@@ -613,6 +562,15 @@ const getMediaText = (mediaType: string, fileName?: string) => {
       time: fmtTime(now),
       createdAt: now,
       status: "sent",
+      // 🔹 ДОБАВЛЕНО: информация об ответе
+      replyTo: replyTo
+        ? {
+            id: replyTo.id,
+            author: replyTo.author,
+            text: replyTo.text,
+            media: replyTo.media,
+          }
+        : undefined,
     };
 
     const stick = isNearBottom();
@@ -730,11 +688,18 @@ const getMediaText = (mediaType: string, fileName?: string) => {
 
         // 🔹 ИСПРАВЛЕННЫЙ формат сообщения для WebSocket
         const wsMessage = {
-          action: "send_message", // или "sendMessage" - зависит от вашего сервера
+          action: "send_message",
           chat_id: realChatId,
           message: text,
           temp_id: tempMsgId,
           type: "text",
+          // 🔹 ДОБАВЛЕНО: информация об ответе
+          reply_to: replyTo
+            ? {
+                message_id: replyTo.id,
+                chat_id: realChatId,
+              }
+            : undefined,
         };
 
         console.log("WebSocket message payload:", wsMessage);
@@ -742,18 +707,11 @@ const getMediaText = (mediaType: string, fileName?: string) => {
         // Отправляем через WebSocket
         sendMessage(wsMessage);
 
-        // 🔹 НЕ обновляем статус сразу - ждем подтверждения от сервера
-        // setMessages((prev) =>
-        //   prev.map((m) =>
-        //     m.id === tempMsgId ? { ...m, status: "delivered" } : m
-        //   )
-        // );
-
         // Резерв: если через 3 секунды нет подтверждения, пробуем HTTP
         const fallbackTimeout = setTimeout(() => {
-          console.log("WebSocket timeout, falling back to HTTP");
-          sendViaHttp(realChatId, text, tempMsgId);
-        }, 3000);
+  console.log("WebSocket timeout, falling back to HTTP");
+  sendViaHttp(realChatId, text, tempMsgId, replyTo); // 🔹 ДОБАВЛЕНО replyTo
+}, 3000);
 
         // Очищаем таймаут при успешном получении подтверждения
         const cleanup = () => clearTimeout(fallbackTimeout);
@@ -796,10 +754,8 @@ const getMediaText = (mediaType: string, fileName?: string) => {
       );
       alert("Ошибка сети при отправке");
     }
+    setReplyingTo(null);
   };
-
-  // 🔹 ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ ВЫБОРА ФАЙЛА
-  // Замените функцию handleFileSelect и handleSendMedia в ChatPage
 
   // 🔹 УПРОЩЕННАЯ функция для выбора файла
   const handleFileSelect = async (file: File) => {
@@ -851,282 +807,287 @@ const getMediaText = (mediaType: string, fileName?: string) => {
     }
   };
 
-  // 🔹 ИСПРАВЛЕННАЯ функция отправки медиа с лучшей обработкой ошибок
-  const handleSendMedia = async (file: File) => {
-    if (!chatId) {
-      console.log("Cannot send media: no chatId");
-      return;
+  // 🔹 ОБНОВЛЕННАЯ функция отправки медиа с поддержкой ответов
+const handleSendMedia = async (file: File) => {
+  if (!chatId) {
+    console.log("Cannot send media: no chatId");
+    return;
+  }
+
+  const now = Date.now();
+  const tempMsgId = crypto.randomUUID();
+
+  // Определяем тип файла
+  const getFileType = (
+    mimeType: string
+  ): "image" | "video" | "document" | "audio" => {
+    if (mimeType.startsWith("image/")) return "image";
+    if (mimeType.startsWith("video/")) return "video";
+    if (mimeType.startsWith("audio/")) return "audio";
+    return "document";
+  };
+
+  const fileType = getFileType(file.type);
+
+  // Оптимистичное сообщение
+  const optimistic: Message = {
+    id: tempMsgId,
+    chatId,
+    author: "me",
+    text: getMediaText(fileType, file.name),
+    time: fmtTime(now),
+    createdAt: now,
+    status: "sent",
+    // 🔹 ДОБАВЛЕНО: информация об ответе для медиа
+    replyTo: replyingTo ? {
+      id: replyingTo.id,
+      author: replyingTo.author,
+      text: replyingTo.text,
+      media: replyingTo.media
+    } : undefined,
+    media: {
+      url: URL.createObjectURL(file),
+      type: fileType,
+      name: file.name,
+      size: file.size,
+      mime: file.type,
+    },
+  };
+
+  const stick = isNearBottom();
+  setMessages((prev) =>
+    [...prev, optimistic].sort(
+      (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
+    )
+  );
+  if (stick) setTimeout(scrollToBottom, 40);
+
+  try {
+    let realChatId = chatId;
+
+    // 🔹 Обработка временного чата
+    if (isTempChat && tempPhone) {
+      console.log("=== CREATING REAL CHAT FROM TEMP FOR MEDIA ===");
+
+      if (tempPhone.length !== 11) {
+        throw new Error(
+          `Неверная длина номера: ${tempPhone.length} цифр. Должно быть 11.`
+        );
+      }
+
+      const apiPhone = `${tempPhone}@c.us`;
+      console.log("API phone for media:", apiPhone);
+
+      const start = await fetch("/api/whatsapp/chats/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: apiPhone }),
+      });
+
+      if (!start.ok) {
+        const errorData = await start
+          .json()
+          .catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData?.error || "Не удалось создать чат");
+      }
+
+      const startData = await start.json();
+
+      if (!startData?.chat_id) {
+        throw new Error("Сервер не вернул chat_id");
+      }
+
+      realChatId = String(startData.chat_id);
+      console.log("Real chat created for media with ID:", realChatId);
+
+      // Обновляем состояние
+      setChats((prev) => [
+        {
+          id: realChatId,
+          chat_id: realChatId,
+          is_group: false,
+          name: tempPhone,
+          phone: tempPhone,
+          lastMessage: "📎 Медиа",
+          time: fmtTime(now),
+          unread: 0,
+          avatarFallback: tempPhone.slice(0, 2),
+          avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
+            tempPhone
+          )}`,
+          updatedAt: now,
+        },
+        ...prev,
+      ]);
+
+      router.replace(`/${realChatId}`);
     }
 
-    const now = Date.now();
-    const tempMsgId = crypto.randomUUID();
+    console.log("=== SENDING FILE TO CHAT ===");
+    console.log("Real chat ID:", realChatId);
+    console.log("File:", file.name, file.type, file.size);
+    console.log("Replying to:", replyingTo); // 🔹 Логируем информацию об ответе
 
-    // Определяем тип файла
-    const getFileType = (
-      mimeType: string
-    ): "image" | "video" | "document" | "audio" => {
-      if (mimeType.startsWith("image/")) return "image";
-      if (mimeType.startsWith("video/")) return "video";
-      if (mimeType.startsWith("audio/")) return "audio";
-      return "document";
-    };
+    // 🔹 СОЗДАЕМ FormData с правильной структурой
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("caption", file.name);
+    
+    // 🔹 ДОБАВЛЯЕМ информацию об ответе если есть
+    if (replyingTo) {
+      formData.append("reply_to_message_id", replyingTo.id);
+    }
+    
+    console.log("Sending FormData to API...");
 
-    const fileType = getFileType(file.type);
-
-    // Оптимистичное сообщение
-    const optimistic: Message = {
-      id: tempMsgId,
-      chatId,
-      author: "me",
-      text: getMediaText(fileType, file.name),
-      time: fmtTime(now),
-      createdAt: now,
-      status: "sent",
-      media: {
-        url: URL.createObjectURL(file),
-        type: fileType,
-        name: file.name,
-        size: file.size,
-        mime: file.type,
-      },
-    };
-
-    const stick = isNearBottom();
-    setMessages((prev) =>
-      [...prev, optimistic].sort(
-        (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
-      )
-    );
-    if (stick) setTimeout(scrollToBottom, 40);
-
-    try {
-      let realChatId = chatId;
-
-      // 🔹 Обработка временного чата
-      if (isTempChat && tempPhone) {
-        console.log("=== CREATING REAL CHAT FROM TEMP FOR MEDIA ===");
-
-        if (tempPhone.length !== 11) {
-          throw new Error(
-            `Неверная длина номера: ${tempPhone.length} цифр. Должно быть 11.`
-          );
-        }
-
-        const apiPhone = `${tempPhone}@c.us`;
-        console.log("API phone for media:", apiPhone);
-
-        const start = await fetch("/api/whatsapp/chats/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: apiPhone }),
-        });
-
-        if (!start.ok) {
-          const errorData = await start
-            .json()
-            .catch(() => ({ error: "Unknown error" }));
-          throw new Error(errorData?.error || "Не удалось создать чат");
-        }
-
-        const startData = await start.json();
-
-        if (!startData?.chat_id) {
-          throw new Error("Сервер не вернул chat_id");
-        }
-
-        realChatId = String(startData.chat_id);
-        console.log("Real chat created for media with ID:", realChatId);
-
-        // Обновляем состояние
-        setChats((prev) => [
-          {
-            id: realChatId,
-            chat_id: realChatId,
-            is_group: false,
-            name: tempPhone,
-            phone: tempPhone,
-            lastMessage: "📎 Медиа",
-            time: fmtTime(now),
-            unread: 0,
-            avatarFallback: tempPhone.slice(0, 2),
-            avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
-              tempPhone
-            )}`,
-            updatedAt: now,
-          },
-          ...prev,
-        ]);
-
-        router.replace(`/${realChatId}`);
-      }
-
-      console.log("=== SENDING FILE TO CHAT ===");
-      console.log("Real chat ID:", realChatId);
-      console.log("File:", file.name, file.type, file.size);
-
-      // 🔹 СОЗДАЕМ FormData с правильной структурой
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("caption", file.name);
-      console.log("Sending FormData to API...");
-
-      // 🔹 ДОБАВЬТЕ ТЕСТИРОВАНИЕ ПЕРЕД ОСНОВНОЙ ОТПРАВКОЙ
-      console.log("=== TESTING UPLOAD FIRST ===");
-      const testResult = await fetch("/api/whatsapp/test-upload", {
+    // 🔹 ОТПРАВЛЯЕМ через API
+    const sendMediaRes = await fetch(
+      `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send/media`,
+      {
         method: "POST",
         body: formData,
-      });
-      const testData = await testResult.json();
-      console.log("Test upload result:", testData);
+      }
+    );
 
-      if (!testResult.ok) {
-        throw new Error(`Test upload failed: ${JSON.stringify(testData)}`);
+    console.log("Send media response status:", sendMediaRes.status);
+
+    // 🔹 УЛУЧШЕННАЯ ОБРАБОТКА ОТВЕТА
+    let responseData;
+    try {
+      const responseText = await sendMediaRes.text();
+      console.log("Send media response text:", responseText);
+
+      responseData = responseText ? JSON.parse(responseText) : {};
+    } catch (parseError) {
+      console.error("Failed to parse send media response:", parseError);
+      throw new Error("Неверный формат ответа от сервера");
+    }
+
+    if (!sendMediaRes.ok) {
+      console.error("Send media API error:", responseData);
+
+      // 🔹 ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ОБ ОШИБКЕ 422
+      if (sendMediaRes.status === 422) {
+        const errorDetails =
+          responseData.details ||
+          responseData.error ||
+          "Неизвестная ошибка валидации";
+        throw new Error(`Ошибка валидации: ${JSON.stringify(errorDetails)}`);
       }
 
-      console.log("=== PROCEEDING WITH ACTUAL UPLOAD ===");
+      throw new Error(responseData.error || `HTTP ${sendMediaRes.status}`);
+    }
 
-      // 🔹 ОТПРАВЛЯЕМ через API
+    console.log("Media sent successfully:", responseData);
 
-      console.log("Sending FormData to API...");
+    // Обновляем сообщение
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === tempMsgId
+          ? {
+              ...m,
+              id: responseData?.id_message || tempMsgId,
+              status: "delivered",
+              media: m.media
+                ? {
+                    ...m.media,
+                    url:
+                      responseData?.media_url ||
+                      responseData?.url ||
+                      m.media.url,
+                  }
+                : m.media,
+            }
+          : m
+      )
+    );
 
-      // 🔹 ОТПРАВЛЯЕМ через API
-      const sendMediaRes = await fetch(
-        `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send/media`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+    // 🔹 Сбрасываем состояние ответа после успешной отправки
+    setReplyingTo(null);
 
-      console.log("Send media response status:", sendMediaRes.status);
+    // Обновляем чаты и сообщения
+    setTimeout(() => {
+      loadMessages(realChatId, true);
+      loadChats(true);
+    }, 1000);
+  } catch (error) {
+    console.error("Send media error:", error);
 
-      // 🔹 УЛУЧШЕННАЯ ОБРАБОТКА ОТВЕТА
-      let responseData;
-      try {
-        const responseText = await sendMediaRes.text();
-        console.log("Send media response text:", responseText);
+    // Отмечаем сообщение как failed
+    setMessages((prev) =>
+      prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
+    );
 
-        responseData = responseText ? JSON.parse(responseText) : {};
-      } catch (parseError) {
-        console.error("Failed to parse send media response:", parseError);
-        throw new Error("Неверный формат ответа от сервера");
+    // 🔹 БОЛЕЕ ИНФОРМАТИВНОЕ СООБЩЕНИЕ ОБ ОШИБКЕ
+    const errorMessage =
+      error instanceof Error ? error.message : "Неизвестная ошибка";
+
+    alert(`Ошибка при отправке файла "${file.name}": ${errorMessage}`);
+  }
+};
+
+  // 🔹 Вспомогательная функция для HTTP отправки
+const sendViaHttp = async (
+  realChatId: string,
+  text: string,
+  tempMsgId: string,
+  replyTo?: ReplyMessage // 🔹 ДОБАВЛЕНО параметр replyTo
+) => {
+  try {
+    const sendRes = await fetch(
+      `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          text,
+          // 🔹 ДОБАВЛЕНО: информация об ответе
+          reply_to: replyTo ? {
+            message_id: replyTo.id
+          } : undefined
+        }),
       }
+    );
 
-      if (!sendMediaRes.ok) {
-        console.error("Send media API error:", responseData);
+    let sendData;
+    try {
+      sendData = await sendRes.json();
+    } catch (parseError) {
+      console.error("Failed to parse send message response:", parseError);
+      sendData = { error: "Invalid response" };
+    }
 
-        // 🔹 ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ОБ ОШИБКЕ 422
-        if (sendMediaRes.status === 422) {
-          const errorDetails =
-            responseData.details ||
-            responseData.error ||
-            "Неизвестная ошибка валидации";
-          throw new Error(`Ошибка валидации: ${JSON.stringify(errorDetails)}`);
-        }
-
-        throw new Error(responseData.error || `HTTP ${sendMediaRes.status}`);
-      }
-
-      console.log("Media sent successfully:", responseData);
-
-      // Обновляем сообщение
+    if (sendRes.ok) {
+      console.log("Message sent successfully via HTTP");
       setMessages((prev) =>
         prev.map((m) =>
           m.id === tempMsgId
             ? {
                 ...m,
-                id: responseData?.id_message || tempMsgId,
+                id: sendData?.id_message || tempMsgId,
                 status: "delivered",
-                media: m.media
-                  ? {
-                      ...m.media,
-                      url:
-                        responseData?.media_url ||
-                        responseData?.url ||
-                        m.media.url,
-                    }
-                  : m.media,
               }
             : m
         )
       );
-
-      // Обновляем чаты и сообщения
       setTimeout(() => {
         loadMessages(realChatId, true);
         loadChats(true);
       }, 1000);
-    } catch (error) {
-      console.error("Send media error:", error);
-
-      // Отмечаем сообщение как failed
+    } else {
+      console.error("Failed to send message via HTTP:", sendData);
       setMessages((prev) =>
         prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
       );
-
-      // 🔹 БОЛЕЕ ИНФОРМАТИВНОЕ СООБЩЕНИЕ ОБ ОШИБКЕ
-      const errorMessage =
-        error instanceof Error ? error.message : "Неизвестная ошибка";
-
-      alert(`Ошибка при отправке файла "${file.name}": ${errorMessage}`);
+      alert(sendData?.error || "Не удалось отправить сообщение");
     }
-  };
-
-  // 🔹 Вспомогательная функция для HTTP отправки
-  const sendViaHttp = async (
-    realChatId: string,
-    text: string,
-    tempMsgId: string
-  ) => {
-    try {
-      const sendRes = await fetch(
-        `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        }
-      );
-
-      let sendData;
-      try {
-        sendData = await sendRes.json();
-      } catch (parseError) {
-        console.error("Failed to parse send message response:", parseError);
-        sendData = { error: "Invalid response" };
-      }
-
-      if (sendRes.ok) {
-        console.log("Message sent successfully via HTTP");
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === tempMsgId
-              ? {
-                  ...m,
-                  id: sendData?.id_message || tempMsgId,
-                  status: "delivered",
-                }
-              : m
-          )
-        );
-        setTimeout(() => {
-          loadMessages(realChatId, true);
-          loadChats(true);
-        }, 1000);
-      } else {
-        console.error("Failed to send message via HTTP:", sendData);
-        setMessages((prev) =>
-          prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
-        );
-        alert(sendData?.error || "Не удалось отправить сообщение");
-      }
-    } catch (error) {
-      console.error("HTTP send error:", error);
-      setMessages((prev) =>
-        prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
-      );
-    }
-  };
+  } catch (error) {
+    console.error("HTTP send error:", error);
+    setMessages((prev) =>
+      prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
+    );
+  }
+};
 
   // Effects
   useEffect(() => {
@@ -1262,7 +1223,7 @@ const getMediaText = (mediaType: string, fileName?: string) => {
 
   return (
     <TooltipProvider>
-      {/* Индикатор WebSocket подключения */}
+      {/* Индикатор WebSocket подключения (оставляем как есть) */}
       <div
         className={`fixed top-0 left-0 right-0 h-1 z-50 transition-all ${
           isConnected ? "bg-green-500" : "bg-red-500 animate-pulse"
@@ -1270,11 +1231,11 @@ const getMediaText = (mediaType: string, fileName?: string) => {
       />
 
       {isPolling && (
-        <div className="fixed top-1 left-0 right-0 h-0.5 bg-blue-500/20 z-50" />
+        <div className="fixed top-1 left-0 right-0 h-0.5 bg-green-500/20 z-50" />
       )}
 
       {isLoadingUI && (
-        <div className="fixed inset-x-0 top-2 h-[2px] bg-primary/30 animate-pulse z-50" />
+        <div className="fixed inset-x-0 top-2 h-[2px] bg-green-500/30 animate-pulse z-50" />
       )}
 
       {/* Мобильный Sidebar */}
@@ -1293,16 +1254,27 @@ const getMediaText = (mediaType: string, fileName?: string) => {
       />
 
       <div className="flex h-[calc(100vh-2rem)] md:h-screen w-full bg-background text-foreground">
-        {/* Desktop Sidebar - скрыт на мобилках */}
-        <aside className="hidden md:flex md:w-[360px] lg:w-[400px] flex-col border-r">
+        {/* Desktop Sidebar - Стилизован под WhatsApp в Sidebar.tsx */}
+        <aside className="hidden md:flex md:w-[360px] lg:w-[400px] flex-col border-r border-gray-200 dark:border-gray-800">
           {loadingChats ? (
-            <div className="p-3 space-y-2">
-              <div className="h-9 bg-muted rounded-md animate-pulse" />
+            // Скелетон загрузки
+            <div className="p-2 space-y-1">
+              {/* Скелетон хедер */}
+              <div className="h-14 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-800" />
+              {/* Скелетон поиска */}
+              <div className="h-10 mx-2 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" />
+              {/* Скелетоны чатов */}
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-14 bg-muted/60 rounded-xl animate-pulse"
-                />
+                  className="flex items-center gap-3 p-4"
+                >
+                  <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-gray-800 animate-pulse" />
+                  <div className="flex-1 space-y-1">
+                    <div className="h-3 w-3/4 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
+                    <div className="h-3 w-1/2 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
+                  </div>
+                </div>
               ))}
             </div>
           ) : (
@@ -1322,49 +1294,74 @@ const getMediaText = (mediaType: string, fileName?: string) => {
 
         {/* Chat area */}
         <main className="flex-1 flex flex-col">
-          {/* Мобильный хедер */}
-          <div className="md:hidden border-b bg-background/95 backdrop-blur">
+          {/* 💬 WhatsApp Style: Мобильный хедер чата */}
+          <div 
+            // 📌 Изменение: Фон и цвет текста как в WhatsApp
+            className="md:hidden border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
+          >
             <div className="flex items-center justify-between p-3">
+              {/* Кнопка открытия Sidebar (Назад) */}
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setMobileSidebarOpen(true)}
-                className="md:hidden"
+                className="md:hidden flex-shrink-0"
               >
                 <Menu className="h-5 w-5" />
               </Button>
 
-              <div className="flex-1 text-center">
+              <div className="flex-1 text-center min-w-0">
                 {selectedChat ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback>
+                  <div className="flex items-center gap-3 w-full pl-2">
+                    {/* Аватар собеседника */}
+                    <Avatar className="h-10 w-10 flex-shrink-0">
+                      <AvatarImage src={selectedChat.avatarUrl} alt={selectedChat.name} />
+                      <AvatarFallback className="bg-green-500 text-white">
                         {selectedChat.avatarFallback}
                       </AvatarFallback>
                     </Avatar>
-                    <div>
-                      <div className="font-medium text-sm">
-                        {selectedChat.name}
+                    
+                    {/* Имя и статус */}
+                    <div className="text-left truncate">
+                      <div className="font-semibold text-base truncate">
+                        {selectedChat.name || selectedChat.phone}
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {isConnected ? "online" : "offline"}
+                      <div className="text-xs text-green-600 dark:text-green-400">
+                        {isConnected ? "онлайн" : "был(а) недавно"}
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="font-medium">Выберите чат</div>
+                  // Сообщение при отсутствии выбранного чата
+                  <div className="font-medium text-gray-500 dark:text-gray-400">Выберите чат</div>
                 )}
               </div>
 
-              <div className="w-9"> {/* Placeholder for balance */} </div>
+              {/* Правая часть хедера: Кнопка обновления + Меню чата */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {/* 📌 Добавлено: Кнопка принудительного обновления */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={forceRefresh}
+                  disabled={loadingChats}
+                >
+                  <RefreshCw className={`h-5 w-5 ${loadingChats ? "animate-spin text-green-500" : "text-gray-500"}`} />
+                </Button>
+                
+                {/* Меню чата */}
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-5 w-5 text-gray-500" />
+                </Button>
+              </div>
             </div>
           </div>
 
-          {/* Баннер про скрытый чат */}
+          {/* Баннер про скрытый чат (оставляем без изменений) */}
           {(isTempChat ||
             (selectedChat &&
               hiddenPhones.includes(selectedChat.phone || ""))) && (
-            <div className="px-3 md:px-6 py-2 text-[12px] bg-muted text-muted-foreground border-b flex items-center gap-2">
+            <div className="px-3 md:px-6 py-2 text-[12px] bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border-b border-yellow-200 dark:border-yellow-800 flex items-center gap-2">
               <span>
                 Скрытый чат с{" "}
                 <b>{isTempChat ? tempPhone : selectedChat?.phone}</b> — не
@@ -1372,7 +1369,7 @@ const getMediaText = (mediaType: string, fileName?: string) => {
               </span>
               <Button
                 variant="link"
-                className="h-auto p-0 text-xs"
+                className="h-auto p-0 text-xs text-yellow-700 dark:text-yellow-300 hover:text-yellow-600 dark:hover:text-yellow-200"
                 onClick={unhideCurrent}
               >
                 Показать в списке
@@ -1390,6 +1387,13 @@ const getMediaText = (mediaType: string, fileName?: string) => {
                 ) as HTMLDivElement | null;
                 scrollContainerRef.current = vp ?? null;
               }}
+              
+              style={{ 
+                  backgroundImage: `url('/whatsapp-bg-tile.png')`, // Если есть файл плитки
+                  backgroundAttachment: 'fixed', 
+                  backgroundRepeat: 'repeat',
+                  backgroundColor: '#ECE5DD', // Стандартный светло-серый фон WhatsApp
+              }}
             >
               <div className="px-3 md:px-6 py-4 space-y-3">
                 {loadingMessages ? (
@@ -1401,7 +1405,7 @@ const getMediaText = (mediaType: string, fileName?: string) => {
                           i % 2 ? "justify-end" : "justify-start"
                         }`}
                       >
-                        <div className="h-12 w-56 bg-muted rounded-2xl animate-pulse" />
+                        <div className="h-12 w-56 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
                       </div>
                     ))}
                   </>
@@ -1412,21 +1416,33 @@ const getMediaText = (mediaType: string, fileName?: string) => {
                       : "Нет сообщений"}
                   </div>
                 ) : (
-                  messages.map((m) => <MessageBubble key={m.id} msg={m} />)
+                  messages.map((m) => (
+                    <MessageBubble
+                      key={m.id}
+                      msg={m}
+                      onReply={handleReplyToMessage}
+                      isReplying={replyingTo?.id === m.id}
+                      // 📌 Примечание: MessageBubble должен иметь WhatsApp стили пузырей!
+                    />
+                  ))
                 )}
                 <div ref={bottomRef} />
               </div>
             </ScrollArea>
           ) : (
+            // Экран выбора чата (уже стилизован)
             <div className="flex-1 flex items-center justify-center p-4">
               <div className="text-center max-w-sm">
-                <div className="text-lg font-semibold mb-2">Выберите чат</div>
+                <div className="text-2xl font-semibold mb-2 text-green-500">
+                  <MessageCircleMore className="inline h-6 w-6 mb-1" /> WhatsApp Web
+                </div>
                 <p className="text-muted-foreground mb-4">
-                  Начните общение, выбрав существующий чат или создав новый
+                  Начните общение, выбрав существующий чат или нажав на меню
+                  <MoreVertical className="inline h-4 w-4 mx-1" />
                 </p>
                 <Button
                   onClick={() => setMobileSidebarOpen(true)}
-                  className="w-full"
+                  className="w-full bg-green-500 hover:bg-green-600"
                 >
                   <Menu className="h-4 w-4 mr-2" />
                   Открыть список чатов
@@ -1437,23 +1453,22 @@ const getMediaText = (mediaType: string, fileName?: string) => {
 
           {/* Composer */}
           {chatId && (
-            <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t">
+            <div className="sticky bottom-0 z-10 bg-transparent">
+              {/* Composer уже стилизован под WhatsApp */}
               <Composer
                 draft={draft}
                 setDraft={setDraft}
                 onSend={handleSend}
-                onFileSelect={handleFileSelect} // 🔹 ИЗМЕНЕНО
+                onFileSelect={handleFileSelect}
                 disabled={!chatId}
-                placeholder={
-                  chatId
-                    ? "Введите сообщение..."
-                    : "Сначала выберите чат или создайте новый"
-                }
+                placeholder={"Введите сообщение..."}
+                replyingTo={replyingTo}
+                onCancelReply={handleCancelReply}
               />
             </div>
           )}
         </main>
       </div>
     </TooltipProvider>
-  );
+);
 }

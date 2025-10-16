@@ -32,10 +32,19 @@ export function MobileSidebar({
 }: MobileSidebarProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="p-0 w-[85vw] max-w-[400px] bb">
+      <SheetContent 
+        side="left" 
+        // 💬 WhatsApp Style: Убираем padding (p-0) и устанавливаем ширину
+        // Ширина 85vw — это хорошо, max-w-[400px] тоже подходит.
+        className="p-0 w-[85vw] max-w-[400px]"
+      >
+        {/* SheetHeader скрыт, но оставляем его для доступности. 
+          Стилизация хедера теперь полностью в Sidebar.
+        */}
         <SheetHeader className="sr-only">
           <SheetTitle>Чаты</SheetTitle>
         </SheetHeader>
+        
         <div className="h-full">
           <Sidebar
             query={query}

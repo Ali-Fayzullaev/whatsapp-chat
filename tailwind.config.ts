@@ -11,8 +11,11 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: { DEFAULT: "#25D366", foreground: "#ffffff" },
-        accent: "#202C33",
+        // WhatsApp Green
+        'whatsapp-green': '#d9fdd3', // для моих сообщений
+        'whatsapp-dark-green': '#075e54', // для фона чата или акцентов (по желанию)
+        // WhatsApp Light Grey/White for others
+        'whatsapp-light': '#ffffff', // для сообщений собеседника
       },
       backgroundImage: {
         "wa-pattern": "radial-gradient(rgba(0,0,0,0.03) 1px, transparent 1px)",
