@@ -9,11 +9,17 @@ import {
   Video, 
   Mic2Icon,
   Reply,
-  X
+  MoreHorizontal
 } from "lucide-react";
 import type { Message } from "./types";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface MessageBubbleProps {
   msg: Message;
@@ -24,8 +30,8 @@ interface MessageBubbleProps {
 export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) {
   const isMe = msg.author === "me";
   const [imageError, setImageError] = useState(false);
-  const [showReplyButton, setShowReplyButton] = useState(false);
-  
+  const [showMenu, setShowMenu] = useState(false);
+
   const handleDownload = (url: string, filename: string) => {
     const link = document.createElement('a');
     link.href = url;
@@ -37,38 +43,30 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
     if (onReply) {
       onReply(msg);
     }
+    setShowMenu(false);
   };
 
-  // 💬 WhatsApp Style: Рендеринг сообщения, на которое отвечают
+  // 🔹 Telegram Style: Рендеринг сообщения, на которое отвечают
   const renderReply = () => {
     if (!msg.replyTo) return null;
 
-    // В WhatsApp цитата всегда имеет вертикальную полоску и другой фон
     return (
-      <div 
-        className={`
-          mb-1 p-2 rounded-lg border-l-4 max-w-full cursor-default
-          ${isMe 
-            ? 'bg-white/70 border-green-500 text-gray-700' // Светлая цитата внутри зеленого пузыря
-            : 'bg-gray-100/70 border-green-500 text-gray-700' // Светлая цитата внутри белого пузыря
-          }
-        `}
-      >
-        <div className="flex items-center gap-1 mb-1">
-          <span className={`text-xs font-medium ${isMe ? 'text-green-600' : 'text-green-600'}`}>
+      <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg border-l-4 border-blue-500">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
+          <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
             {msg.replyTo.author === "me" ? "Вы" : "Сообщение"}
           </span>
         </div>
         
-        {/* Текст или описание медиа */}
-        <div className="text-sm line-clamp-2"> {/* line-clamp для ограничения по высоте */}
+        <div className="text-sm text-gray-700 dark:text-gray-300">
           {msg.replyTo.media ? (
-            <div className="flex items-center gap-1 text-muted-foreground/80">
+            <div className="flex items-center gap-1">
               {msg.replyTo.media.type === 'image' && <Image className="h-3 w-3" />}
               {msg.replyTo.media.type === 'video' && <Video className="h-3 w-3" />}
               {msg.replyTo.media.type === 'audio' && <Mic2Icon className="h-3 w-3" />}
               {msg.replyTo.media.type === 'document' && <File className="h-3 w-3" />}
-              <span className="truncate">
+              <span>
                 {msg.replyTo.media.name || 
                  (msg.replyTo.media.type === 'image' ? 'Изображение' :
                   msg.replyTo.media.type === 'video' ? 'Видео' :
@@ -76,17 +74,14 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
               </span>
             </div>
           ) : (
-            <div className="truncate text-foreground/80">
-              {msg.replyTo.text}
-            </div>
+            msg.replyTo.text
           )}
         </div>
       </div>
     );
   };
 
-  // ... (Функции getFileTypeFromMessage и getDisplayFileName оставляем без изменений)
-
+  // 🔹 Функции для определения типа файла
   const getFileTypeFromMessage = (msg: Message): string => {
     if (msg.media?.type) return msg.media.type;
     if (msg.media?.mime) {
@@ -129,63 +124,44 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
     
     return fileName || 'Файл';
   };
-  
-  // 💬 WhatsApp Style: Улучшаем рендеринг медиа
+
   const renderMedia = () => {
     if (!msg.media) return null;
 
     const mediaType = getFileTypeFromMessage(msg);
     const displayFileName = getDisplayFileName();
-    
-    // В WhatsApp медиа обычно не имеет такого большого отступа, как текстовое сообщение,
-    // а само медиа занимает всю ширину "пузыря" (с внутренними отступами).
 
     switch (mediaType) {
       case 'image':
         return (
-          // Убираем mb-2, чтобы оно сливалось с текстом, если он есть
-          <div className="rounded-xl overflow-hidden max-w-[280px] relative"> 
+          <div className="mb-3 rounded-lg overflow-hidden">
             {!imageError ? (
               <img 
                 src={msg.media.url} 
                 alt={displayFileName}
-                className="w-full h-auto object-cover max-h-[300px] cursor-pointer"
+                className="w-full h-auto max-w-md object-cover cursor-pointer"
                 onError={() => setImageError(true)}
                 loading="lazy"
                 onClick={() => window.open(msg.media!.url, '_blank')}
               />
             ) : (
-              // ... (Оставляем обработку ошибки без изменений, но уберите mb-2)
-              <div className="flex flex-col items-center justify-center p-4 bg-muted text-muted-foreground rounded-lg">
-                <Image className="h-8 w-8 mb-2" />
-                <div className="text-sm text-center">
+              <div className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <Image className="h-8 w-8 mb-2 text-gray-400" />
+                <div className="text-sm text-center text-gray-500">
                   <div className="font-medium">{displayFileName}</div>
                   <div className="text-xs mt-1">Не удалось загрузить изображение</div>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-2"
-                  onClick={() => handleDownload(msg.media!.url, displayFileName)}
-                >
-                  <Download className="h-3 w-3 mr-1" />
-                  Скачать
-                </Button>
               </div>
             )}
-            {/* Если медиа не является только медиа, то текст будет ниже, 
-                в этом случае время/статус будет на тексте. 
-                Если это только медиа, то время/статус на картинке, но это сложнее.
-                Пока оставим время внизу компонента, но уберем правый отступ для медиа */}
           </div>
         );
       
       case 'video':
         return (
-          <div className="rounded-xl overflow-hidden max-w-[280px] relative">
+          <div className="mb-3 rounded-lg overflow-hidden">
             <video 
               controls 
-              className="w-full h-auto max-h-[300px] rounded-lg"
+              className="w-full h-auto max-w-md rounded-lg"
               preload="metadata"
             >
               <source src={msg.media.url} type={msg.media.mime} />
@@ -195,34 +171,67 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
         );
       
       case 'audio':
-        // Аудио в WhatsApp имеет свой особый дизайн, но для простоты:
         return (
-          <div className="mb-2 w-full max-w-[280px] pr-10"> {/* pr-10 для места под время/статус */}
-            <div className="flex items-center gap-3">
-              {/* Аудио-плеер, похожий на WhatsApp */}
-              <audio controls className="flex-1 w-full h-9">
-                <source src={msg.media.url} type={msg.media.mime} />
-                Ваш браузер не поддерживает аудио.
-              </audio>
-              {/* В WhatsApp здесь может быть аватарка/иконка */}
+          <div className="mb-3 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg max-w-md">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-blue-500 rounded-full">
+                <Mic2Icon className="h-4 w-4 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm">
+                  {displayFileName}
+                </div>
+              </div>
             </div>
+            <audio controls className="w-full">
+              <source src={msg.media.url} type={msg.media.mime} />
+              Ваш браузер не поддерживает аудио.
+            </audio>
           </div>
         );
       
       case 'document':
       default:
-        // Упрощенный дизайн документа, похожий на WhatsApp
+        const fileName = msg.media.name || msg.media.url;
+        const isActuallyImage = fileName?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i) || 
+                               msg.media.mime?.startsWith('image/');
+        
+        if (isActuallyImage) {
+          return (
+            <div className="mb-3 rounded-lg overflow-hidden">
+              {!imageError ? (
+                <img 
+                  src={msg.media.url} 
+                  alt={displayFileName}
+                  className="w-full h-auto max-w-md object-cover cursor-pointer"
+                  onError={() => setImageError(true)}
+                  loading="lazy"
+                  onClick={() => window.open(msg.media!.url, '_blank')}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                  <Image className="h-8 w-8 mb-2 text-gray-400" />
+                  <div className="text-sm text-center text-gray-500">
+                    <div className="font-medium">{displayFileName}</div>
+                    <div className="text-xs mt-1">Не удалось загрузить изображение</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+        
         return (
-          <div className="flex items-center gap-3 p-2 rounded-lg max-w-[280px] pr-10">
-            <div className={`p-2 rounded-full ${isMe ? 'bg-white/90' : 'bg-green-100'}`}>
-                <File className="h-5 w-5 text-green-600 flex-shrink-0" />
+          <div className="mb-3 flex items-center gap-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg max-w-md">
+            <div className="p-3 bg-blue-500 rounded-lg">
+              <File className="h-6 w-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm truncate">
+              <div className="font-medium text-sm mb-1">
                 {displayFileName}
               </div>
               {msg.media.size && (
-                <div className={`text-xs ${isMe ? 'text-white/80' : 'text-gray-500'}`}>
+                <div className="text-xs text-gray-500">
                   {(msg.media.size / 1024 / 1024).toFixed(2)} MB
                 </div>
               )}
@@ -231,7 +240,7 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
               variant="ghost"
               size="icon"
               onClick={() => handleDownload(msg.media!.url, displayFileName)}
-              className={`flex-shrink-0 ${isMe ? 'text-white/90 hover:text-white/70' : 'text-green-600 hover:text-green-700'}`}
+              className="flex-shrink-0 text-gray-500 hover:text-blue-500"
               title="Скачать файл"
             >
               <Download className="h-4 w-4" />
@@ -242,76 +251,76 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
   };
 
   // 🔹 Определяем, является ли сообщение только медиа-файлом
-  const isMediaOnly = msg.media && !msg.text; // Упрощенное определение для стиля
+  const isMediaOnly = msg.media && !msg.text;
 
   return (
-    <div 
-      className={`flex ${isMe ? "justify-end" : "justify-start"} mb-3`}
-      onMouseEnter={() => setShowReplyButton(true)}
-      onMouseLeave={() => setShowReplyButton(false)}
-    >
+    <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-4 group`}>
       <div
         className={[
-          "relative max-w-[85%] px-3 pt-2 pb-1 shadow-sm group min-w-[80px]", // pb-1 для места под время
-          // 💬 WhatsApp Style: Закругления и цвета
+          "relative max-w-[70%] rounded-2xl px-4 py-3",
           isMe
-            ? "bg-whatsapp-green  rounded-xl rounded-br-none bg-green-400 text-white" // Светло-зеленый, острый угол внизу справа
-            : "bg-white text-gray-900 rounded-xl rounded-bl-none border border-gray-100", // Белый, острый угол внизу слева
+            ? "bg-blue-500 text-white rounded-br-md"
+            : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-md border border-gray-200 dark:border-gray-700",
         ].join(" ")}
       >
-        {/* 💬 WhatsApp Style: Кнопка ответа (свайп вправо) */}
-        {onReply && showReplyButton && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`
-              absolute z-10 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity
-              ${isMe 
-                ? '-left-8 bg-transparent hover:bg-gray-100/50 text-gray-500' // Слева от зеленого пузыря
-                : '-right-8 bg-transparent hover:bg-gray-100/50 text-gray-500' // Справа от белого пузыря
-              }
-            `}
-            onClick={handleReply}
-            title="Ответить"
-          >
-            <Reply className="h-4 w-4" />
-          </Button>
-        )}
+        {/* 🔹 Telegram Style: Меню с тремя точками */}
+        <div className="absolute top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <DropdownMenu open={showMenu} onOpenChange={setShowMenu}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-6 w-6 ${
+                  isMe 
+                    ? 'text-blue-100 hover:text-white hover:bg-blue-600' 
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                <MoreHorizontal className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align={isMe ? "end" : "start"}>
+              <DropdownMenuItem onClick={handleReply}>
+                <Reply className="h-4 w-4 mr-2" />
+                Ответить
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigator.clipboard.writeText(msg.text)}>
+                <File className="h-4 w-4 mr-2" />
+                Копировать текст
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         {/* 🔹 Сообщение, на которое отвечаем */}
         {renderReply()}
         
-        {/* 🔹 Медиа (рендерим до текста) */}
+        {/* 🔹 Медиа */}
         {renderMedia()}
         
         {/* 🔹 Текст сообщения */}
         {msg.text && (
-          // Убираем pr-12, чтобы не было слишком много пустого места
-          <div className="whitespace-pre-wrap break-words min-w-full text-base"> 
+          <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
             {msg.text}
           </div>
         )}
         
-        {/* 💬 WhatsApp Style: Время и статус (внизу справа) */}
+        {/* 🔹 Telegram Style: Время и статус */}
         <div
-          className={`
-            flex items-center gap-1 text-[11px] mt-1 whitespace-nowrap justify-end 
-            ${isMe ? "text-gray-500" : "text-gray-500"}
-          `}
+          className={`flex items-center gap-1 text-xs mt-2 justify-end ${
+            isMe ? "text-blue-200" : "text-gray-500"
+          }`}
         >
-          {/* Пустой div для выравнивания текста с медиа, если текст пуст */}
-          {(!msg.text && !msg.media) && <div className="h-4"></div>} 
-          
-          <span className="leading-none">{msg.time}</span>
+          <span>{msg.time}</span>
           {isMe &&
             (msg.status === "read" ? (
-              <CheckCheck className="h-3 w-3 text-blue-500" /> // Синие галочки
+              <CheckCheck className="h-3 w-3 text-blue-300" />
             ) : msg.status === "delivered" ? (
-              <CheckCheck className="h-3 w-3 text-gray-400" /> // Серые двойные галочки
+              <CheckCheck className="h-3 w-3" />
             ) : msg.status === "failed" ? (
-              <span className="text-red-500 leading-none">⚠️</span>
+              <span className="text-red-300">⚠️</span>
             ) : (
-              <Check className="h-3 w-3 text-gray-400" /> // Серая одинарная галочка
+              <Check className="h-3 w-3" />
             ))}
         </div>
       </div>

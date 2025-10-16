@@ -2,9 +2,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-// Мы будем стилизовать Textarea, чтобы оно выглядело как стандартное поле ввода WhatsApp
-import { Textarea } from "@/components/ui/textarea"; 
-import { Paperclip, Send, X, Reply, Mic2Icon } from "lucide-react"; // Добавим Mic2Icon
+import { Textarea } from "@/components/ui/textarea";
+import { Paperclip, Send, X, Mic } from "lucide-react";
 import { useRef, useEffect } from "react";
 import type { ReplyMessage } from "./types";
 
@@ -25,7 +24,7 @@ export function Composer({
   onSend,
   onFileSelect,
   disabled,
-  placeholder = "Введите сообщение...",
+  placeholder = "Сообщение...",
   replyingTo,
   onCancelReply,
 }: ComposerProps) {
@@ -51,7 +50,7 @@ export function Composer({
     const file = e.target.files?.[0];
     if (file) {
       onFileSelect(file);
-      e.target.value = ""; // Сбрасываем input
+      e.target.value = "";
     }
   };
 
@@ -61,51 +60,58 @@ export function Composer({
     }
   }, [replyingTo]);
 
-  const hasText = draft.trim().length > 0;
-
   return (
-    // 💬 WhatsApp Style: Отступы внизу, граница сверху
-    <div className="p-2 border-t border-gray-100 bg-white dark:bg-gray-900">
-      
-      {/* 💬 WhatsApp Style: Баннер ответа на сообщение - более мягкий дизайн */}
+    <div className="p-4 border-t bg-white dark:bg-gray-900">
+      {/* 🔹 Telegram Style: Баннер ответа */}
       {replyingTo && (
-        <div className="mx-2 mb-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-xl border-l-4 border-green-500">
+        <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg border-l-4 border-blue-500">
           <div className="flex items-start justify-between">
-            <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-              <span className="text-xs font-semibold text-green-600 dark:text-green-400">
-                {replyingTo.author === "me" ? "Ваш" : "Ответ на сообщение"}
-              </span>
-              <div className="text-xs text-gray-700 dark:text-gray-300 truncate max-w-full">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  Ответ на {replyingTo.author === "me" ? "ваше" : "сообщение"}
+                </span>
+              </div>
+              <div className="text-sm text-gray-700 dark:text-gray-300 truncate">
                 {replyingTo.media ? (
                   <span className="flex items-center gap-1">
-                    <Reply className="h-3 w-3 text-gray-500 flex-shrink-0" />
-                    {replyingTo.media.type === 'image' && '📷 Изображение'}
+                    {replyingTo.media.type === 'image' && '🖼️ Изображение'}
                     {replyingTo.media.type === 'video' && '🎥 Видео'}
                     {replyingTo.media.type === 'audio' && '🎵 Аудио'}
-                    {replyingTo.media.type === 'document' && '📄 Документ'}
+                    {replyingTo.media.type === 'document' && '📎 Документ'}
                     {replyingTo.media.name && ` • ${replyingTo.media.name}`}
                   </span>
                 ) : (
-                  <span className="line-clamp-1">{replyingTo.text}</span>
+                  replyingTo.text
                 )}
               </div>
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 flex-shrink-0 ml-2 text-gray-500 hover:bg-gray-200"
+              className="h-6 w-6 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700"
               onClick={onCancelReply}
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
       )}
 
-      {/* 💬 WhatsApp Style: Основная строка ввода */}
-      <div className="flex items-end gap-2">
-        
-        {/* Обертка для поля ввода и кнопки вложения */}
+      <div className="flex items-end gap-3">
+        {/* Кнопка прикрепления файла */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled}
+          className="flex-shrink-0 text-gray-500 hover:text-blue-500"
+        >
+          <Paperclip className="h-5 w-5" />
+        </Button>
+
+        {/* Поле ввода */}
         <div className="flex-1 relative">
           <Textarea
             ref={textareaRef}
@@ -114,44 +120,23 @@ export function Composer({
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={disabled}
+            className="min-h-[44px] flex justify-start items-center max-h-[120px] py-3 resize-none rounded-2xl pr-12 bg-gray-100 dark:bg-gray-800 border-0 focus-visible:ring-2 focus-visible:ring-blue-500"
             rows={1}
-            // 💬 WhatsApp Style: Закругленное, светло-серое поле
-            className={`
-              min-h-[44px] max-h-[120px] resize-none 
-              py-3 pl-4 pr-12 text-base 
-              rounded-3xl border-none shadow-sm 
-              bg-gray-100 dark:bg-gray-800 focus-visible:ring-0
-            `}
           />
-          
-          {/* Кнопка прикрепления файла - позиционируем внутри Textarea */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
-            // 💬 WhatsApp Style: Позиционируем справа от текста
-            className="absolute right-1 bottom-1 h-10 w-10 text-gray-500 hover:bg-transparent"
-          >
-            <Paperclip className="h-5 w-5" />
-          </Button>
         </div>
 
-        {/* 💬 WhatsApp Style: Кнопка отправки / микрофона */}
+        {/* Кнопка отправки/микрофона */}
         <Button
-          onClick={hasText ? handleSubmit : () => console.log('Record audio...')} // Если есть текст, отправляем, иначе - записываем
+          onClick={draft.trim() ? handleSubmit : () => console.log('Start recording...')}
           disabled={disabled}
           size="icon"
-          // 💬 WhatsApp Style: Круглая, зеленая, большая кнопка
-          className={`
-            h-11 w-11 rounded-full flex-shrink-0 
-            ${hasText 
-              ? 'bg-green-500 hover:bg-green-600 text-white shadow-md' 
-              : 'bg-green-500 hover:bg-green-600 text-white shadow-md' // В WhatsApp всегда зеленая
-            }
-          `}
+          className={`flex-shrink-0 rounded-full ${
+            draft.trim() 
+              ? 'bg-blue-500 hover:bg-blue-600 text-white' 
+              : 'bg-gray-200 dark:bg-gray-700 text-gray-500 hover:bg-gray-300 dark:hover:bg-gray-600'
+          }`}
         >
-          {hasText ? <Send className="h-5 w-5 -ml-px" /> : <Mic2Icon className="h-5 w-5" />}
+          {draft.trim() ? <Send className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
         </Button>
 
         {/* Скрытый input для файлов */}

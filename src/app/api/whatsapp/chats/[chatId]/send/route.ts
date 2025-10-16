@@ -4,11 +4,12 @@ import { apiConfig } from "@/lib/api-config";
 
 export async function POST(req: NextRequest, { params }: { params: { chatId: string } }) {
   const { chatId } = params;
-  const { text, replyTo } = await req.json();
+  const { text, reply_to } = await req.json(); // 🔹 ИЗМЕНИЛ НА reply_to
   
   console.log("=== SEND MESSAGE API ===");
   console.log("Chat ID:", chatId);
   console.log("Message text:", text);
+  console.log("Reply to:", reply_to); // 🔹 ДОБАВИЛ ЛОГИРОВАНИЕ
   
   if (!text) {
     return Response.json({ error: "Текст обязателен" }, { status: 400 });
@@ -20,10 +21,22 @@ export async function POST(req: NextRequest, { params }: { params: { chatId: str
     const url = `${apiConfig.getBaseUrl()}/api/chats/${decodedId}/send/text`;
     console.log("External API URL:", url);
 
+    // 🔹 ПРАВИЛЬНАЯ СТРУКТУРА ДЛЯ ВНЕШНЕГО API
+    const payload: any = {
+      text: text
+    };
+
+    // 🔹 ПРАВИЛЬНО ПЕРЕДАЕМ ИНФОРМАЦИЮ ОБ ОТВЕТЕ
+    if (reply_to?.message_id) {
+      payload.replyToMessageId = reply_to.message_id; // 🔹 ИЛИ ТО ПОЛЕ, КОТОРОЕ ЖДЕТ ВАШ БЭКЕНД
+    }
+
+    console.log("Sending payload to external API:", payload);
+
     const res = await fetch(url, {
       method: "POST",
       headers: apiConfig.getHeaders(),
-      body: JSON.stringify({ text, reply_to: replyTo }),
+      body: JSON.stringify(payload),
     });
 
     console.log("External API status:", res.status);

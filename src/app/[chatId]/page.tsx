@@ -58,7 +58,9 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   // 🔹 WebSocket хуки ТОЛЬКО ОДИН РАЗ наверху
   const { isConnected, sendMessage, onMessage, offMessage } = useWebSocket();
-
+  const [messageReplies, setMessageReplies] = useState<
+    Map<string, ReplyMessage>
+  >(new Map());
   // 🔹 Правильно определяем временный чат
   const isTempChat = !!chatId?.startsWith("temp:");
   const tempPhone = isTempChat ? chatId.replace("temp:", "") : null;
@@ -70,6 +72,7 @@ export default function ChatPage() {
 
   // 🔹 Функция для ответа на сообщение
   const handleReplyToMessage = (message: Message) => {
+    console.log("🔹 REPLY: Setting reply to message:", message);
     setReplyingTo({
       id: message.id,
       author: message.author,
@@ -82,6 +85,9 @@ export default function ChatPage() {
         : undefined,
     });
   };
+
+  // В рендере добавьте проверку:
+  console.log("🔹 RENDER: Current replyingTo state:", replyingTo);
 
   // Функции для скролла
   const isNearBottom = () => {
@@ -195,200 +201,190 @@ export default function ChatPage() {
     }
   }, []);
 
-  const loadMessages = useCallback(
-    async (currentChatId: string, silent = false) => {
-      if (!currentChatId) {
-        if (!silent) setLoadingMessages(false);
-        return;
+ const loadMessages = useCallback(
+  async (currentChatId: string, silent = false) => {
+    if (!currentChatId) {
+      if (!silent) setLoadingMessages(false);
+      return;
+    }
+
+    const decodedChatId = decodeURIComponent(currentChatId);
+
+    // Обработка временных чатов
+    if (decodedChatId.startsWith("temp:")) {
+      setMessages([]);
+      if (!silent) setLoadingMessages(false);
+      return;
+    }
+
+    if (!silent) setLoadingMessages(true);
+
+    try {
+      console.log(`Loading messages for chat: ${decodedChatId}`);
+
+      const res = await fetch(
+        `/api/whatsapp/chats/${encodeURIComponent(decodedChatId)}/messages`,
+        {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache",
+          },
+        }
+      );
+
+      if (!res.ok) {
+        console.warn(`Messages API error: ${res.status} ${res.statusText}`);
+        if (res.status === 404) {
+          setMessages([]);
+          return;
+        }
+        try {
+          const errorData = await res.json();
+          throw new Error(errorData?.error || `HTTP ${res.status}`);
+        } catch {
+          throw new Error(`Failed to load messages: ${res.status}`);
+        }
       }
 
-      const decodedChatId = decodeURIComponent(currentChatId);
+      const data = await res.json();
+      console.log("Messages API response:", data);
 
-      // Обработка временных чатов
-      if (decodedChatId.startsWith("temp:")) {
-        setMessages([]);
-        if (!silent) setLoadingMessages(false);
-        return;
+      let messagesArray: any[] = [];
+
+      if (Array.isArray(data)) {
+        messagesArray = data;
+      } else if (data && Array.isArray(data.items)) {
+        messagesArray = data.items;
+      } else if (data && typeof data === "object") {
+        messagesArray = Object.values(data).filter(Array.isArray).flat();
       }
 
-      if (!silent) setLoadingMessages(true);
+      console.log(`Processing ${messagesArray.length} messages`);
 
-      try {
-        console.log(`Loading messages for chat: ${decodedChatId}`);
+      const seenIds = new Set<string>();
+      const mapped: Message[] = [];
 
-        const res = await fetch(
-          `/api/whatsapp/chats/${encodeURIComponent(decodedChatId)}/messages`,
-          {
-            cache: "no-store",
-            headers: {
-              "Cache-Control": "no-cache",
-            },
-          }
-        );
+      messagesArray.forEach((msg: any, index: number) => {
+        try {
+          const baseId =
+            msg.id_message ||
+            msg.id ||
+            msg.message_ref ||
+            msg._id ||
+            `msg-${index}-${Date.now()}`;
 
-        // 🔹 УЛУЧШЕННАЯ ОБРАБОТКА ОШИБОК
-        if (!res.ok) {
-          console.warn(`Messages API error: ${res.status} ${res.statusText}`);
-
-          // Для 404 ошибки - возвращаем пустой массив (чат не найден)
-          if (res.status === 404) {
-            setMessages([]);
+          if (seenIds.has(baseId)) {
+            console.log(`Skipping duplicate message: ${baseId}`);
             return;
           }
+          seenIds.add(baseId);
 
-          // Для других ошибок пробуем получить текст ошибки
-          try {
-            const errorData = await res.json();
-            throw new Error(errorData?.error || `HTTP ${res.status}`);
-          } catch {
-            throw new Error(`Failed to load messages: ${res.status}`);
-          }
-        }
-
-        const data = await res.json();
-        console.log("Messages API response:", data);
-
-        // 🔹 БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ ДАННЫХ
-        let messagesArray: any[] = [];
-
-        if (Array.isArray(data)) {
-          messagesArray = data;
-        } else if (data && Array.isArray(data.items)) {
-          messagesArray = data.items;
-        } else if (data && typeof data === "object") {
-          // Если данные в другом формате, пробуем извлечь сообщения
-          messagesArray = Object.values(data).filter(Array.isArray).flat();
-        }
-
-        console.log(`Processing ${messagesArray.length} messages`);
-
-        // 🔹 ОБРАБОТКА СООБЩЕНИЙ С ДУБЛИКАТАМИ
-        const seenIds = new Set<string>();
-        const mapped: Message[] = [];
-
-        messagesArray.forEach((msg: any, index: number) => {
-          try {
-            // Безопасное извлечение ID
-            const baseId =
-              msg.id_message ||
-              msg.id ||
-              msg.message_ref ||
-              msg._id ||
-              `msg-${index}-${Date.now()}`;
-
-            // Пропускаем дубликаты
-            if (seenIds.has(baseId)) {
-              console.log(`Skipping duplicate message: ${baseId}`);
-              return;
-            }
-            seenIds.add(baseId);
-
-            // Определяем авторство
-            const isOutgoing = Boolean(
-              msg.direction === "out" ||
-                msg.sender?.id === "me" ||
-                msg.fromMe ||
-                msg.raw?.typeWebhook === "outgoingAPIMessageReceived"
-            );
-
-            // Безопасное извлечение текста
-            let text = msg.text || "";
-            if (!text && msg.messageData) {
-              text =
-                msg.messageData?.textMessageData?.textMessage ||
-                msg.messageData?.extendedTextMessageData?.text ||
-                "";
-            }
-
-            // Если текст пустой и есть медиа
-            if (!text && msg.media) {
-              text = getMediaText(msg.media.type, msg.media.name);
-            }
-
-            // Если все еще пустой текст
-            if (!text) {
-              text = "[Сообщение]";
-            }
-
-            // Безопасное извлечение времени
-            let createdAt = Date.now();
-            if (typeof msg.timestamp === "number") {
-              createdAt = msg.timestamp * 1000;
-            } else if (msg.timestamp) {
-              const parsed = Date.parse(msg.timestamp);
-              createdAt = isNaN(parsed) ? Date.now() : parsed;
-            } else if (typeof msg.created_at === "number") {
-              createdAt = msg.created_at * 1000;
-            } else if (msg.created_at) {
-              const parsed = Date.parse(msg.created_at);
-              createdAt = isNaN(parsed) ? Date.now() : parsed;
-            }
-
-            // Определяем статус для исходящих сообщений
-            const status = isOutgoing
-              ? msg.status === "read"
-                ? "read"
-                : msg.status === "delivered"
-                ? "delivered"
-                : msg.status === "sent"
-                ? "sent"
-                : "sent"
-              : undefined;
-
-            // Создаем объект сообщения
-            const message: Message = {
-              id: baseId,
-              chatId: decodedChatId,
-              author: isOutgoing ? "me" : "them",
-              text: text.trim(),
-              time: fmtTime(createdAt),
-              createdAt,
-              status,
-            };
-
-            // Добавляем медиа информацию если есть
-            if (msg.media) {
-              message.media = {
-                url: msg.media.url || "",
-                type: (msg.media.type || "document") as
-                  | "image"
-                  | "video"
-                  | "document"
-                  | "audio",
-                name: msg.media.name,
-                size: msg.media.size,
-                mime: msg.media.mime,
-              };
-            }
-
-            mapped.push(message);
-          } catch (msgError) {
-            console.error("Error processing message:", msgError, msg);
-          }
-        });
-
-        // Сортируем по времени создания
-        mapped.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
-
-        console.log(`Successfully loaded ${mapped.length} messages`);
-        setMessages(mapped);
-      } catch (error) {
-        console.error("Error loading messages:", error);
-
-        // 🔹 НЕ СБРАСЫВАЕМ СООБЩЕНИЯ ПРИ ОШИБКЕ - оставляем предыдущие
-        // setMessages([]); // ← ЭТУ СТРОКУ УБИРАЕМ
-
-        if (!silent) {
-          setError(
-            error instanceof Error ? error.message : "Failed to load messages"
+          const isOutgoing = Boolean(
+            msg.direction === "out" ||
+              msg.sender?.id === "me" ||
+              msg.fromMe ||
+              msg.raw?.typeWebhook === "outgoingAPIMessageReceived"
           );
+
+          let text = msg.text || "";
+          if (!text && msg.messageData) {
+            text =
+              msg.messageData?.textMessageData?.textMessage ||
+              msg.messageData?.extendedTextMessageData?.text ||
+              "";
+          }
+
+          if (!text && msg.media) {
+            text = getMediaText(msg.media.type, msg.media.name);
+          }
+
+          if (!text) {
+            text = "[Сообщение]";
+          }
+
+          let createdAt = Date.now();
+          if (typeof msg.timestamp === "number") {
+            createdAt = msg.timestamp * 1000;
+          } else if (msg.timestamp) {
+            const parsed = Date.parse(msg.timestamp);
+            createdAt = isNaN(parsed) ? Date.now() : parsed;
+          } else if (typeof msg.created_at === "number") {
+            createdAt = msg.created_at * 1000;
+          } else if (msg.created_at) {
+            const parsed = Date.parse(msg.created_at);
+            createdAt = isNaN(parsed) ? Date.now() : parsed;
+          }
+
+          const status = isOutgoing
+            ? msg.status === "read"
+              ? "read"
+              : msg.status === "delivered"
+              ? "delivered"
+              : msg.status === "sent"
+              ? "sent"
+              : "sent"
+            : undefined;
+
+          // Создаем объект сообщения
+          const message: Message = {
+            id: baseId,
+            chatId: decodedChatId,
+            author: isOutgoing ? "me" : "them",
+            text: text.trim(),
+            time: fmtTime(createdAt),
+            createdAt,
+            status,
+          };
+
+          // 🔹 ВОССТАНАВЛИВАЕМ REPLYTo ИЗ ЛОКАЛЬНОГО ХРАНИЛИЩА
+          if (messageReplies.has(baseId)) {
+            message.replyTo = messageReplies.get(baseId);
+            console.log(`🔹 RESTORED replyTo for message ${baseId}:`, message.replyTo);
+          }
+
+          // Добавляем медиа информацию если есть
+          if (msg.media) {
+            message.media = {
+              url: msg.media.url || "",
+              type: (msg.media.type || "document") as
+                | "image"
+                | "video"
+                | "document"
+                | "audio",
+              name: msg.media.name,
+              size: msg.media.size,
+              mime: msg.media.mime,
+            };
+          }
+
+          mapped.push(message);
+        } catch (msgError) {
+          console.error("Error processing message:", msgError, msg);
         }
-      } finally {
-        if (!silent) setLoadingMessages(false);
+      });
+
+      // Сортируем по времени создания
+      mapped.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+
+      console.log(`Successfully loaded ${mapped.length} messages`);
+      console.log(`🔹 Messages with replyTo:`, mapped.filter(m => m.replyTo).length);
+      setMessages(mapped);
+    } catch (error) {
+      console.error("Error loading messages:", error);
+      if (!silent) {
+        setError(
+          error instanceof Error ? error.message : "Failed to load messages"
+        );
       }
-    },
-    []
-  );
+    } finally {
+      if (!silent) setLoadingMessages(false);
+    }
+  },
+  [messageReplies] // 🔹 ДОБАВЬТЕ messageReplies в зависимости
+);
+  const saveMessageReply = (messageId: string, replyTo: ReplyMessage) => {
+    setMessageReplies((prev) => new Map(prev).set(messageId, replyTo));
+  };
 
   const getMediaText = (mediaType: string, fileName?: string) => {
     switch (mediaType?.toLowerCase()) {
@@ -546,6 +542,7 @@ export default function ChatPage() {
   };
 
   // ✅ ИСПРАВЛЕННАЯ отправка сообщений
+  // 🔹 ИСПРАВЛЕННАЯ функция отправки сообщений
   const handleSend = async (text: string, replyTo?: ReplyMessage) => {
     if (!text || !chatId) {
       console.log("Cannot send: no text or chatId");
@@ -554,6 +551,9 @@ export default function ChatPage() {
 
     const now = Date.now();
     const tempMsgId = crypto.randomUUID();
+    // 🔹 СОХРАНЯЕМ replyTo ДО создания optimistic сообщения
+    const currentReplyTo = replyTo;
+
     const optimistic: Message = {
       id: tempMsgId,
       chatId,
@@ -562,16 +562,32 @@ export default function ChatPage() {
       time: fmtTime(now),
       createdAt: now,
       status: "sent",
-      // 🔹 ДОБАВЛЕНО: информация об ответе
-      replyTo: replyTo
+      replyTo: currentReplyTo
         ? {
-            id: replyTo.id,
-            author: replyTo.author,
-            text: replyTo.text,
-            media: replyTo.media,
+            id: currentReplyTo.id,
+            author: currentReplyTo.author,
+            text: currentReplyTo.text,
+            media: currentReplyTo.media,
           }
         : undefined,
     };
+
+    // 🔹 СОХРАНЯЕМ ИНФОРМАЦИЮ О REPLYTo
+    if (currentReplyTo) {
+      saveMessageReply(tempMsgId, {
+        id: currentReplyTo.id,
+        author: currentReplyTo.author,
+        text: currentReplyTo.text,
+        media: currentReplyTo.media,
+      });
+    }
+
+    console.log("🔹 OPTIMISTIC MESSAGE:", {
+      id: tempMsgId,
+      text: text,
+      hasReplyTo: !!currentReplyTo,
+      replyTo: currentReplyTo,
+    });
 
     const stick = isNearBottom();
     setMessages((prev) =>
@@ -580,6 +596,10 @@ export default function ChatPage() {
       )
     );
     setDraft("");
+
+    // 🔹 СБРАСЫВАЕМ СОСТОЯНИЕ ОТВЕТА СРАЗУ ПОСЛЕ СОЗДАНИЯ ОПТИМИСТИЧНОГО СООБЩЕНИЯ
+    setReplyingTo(null);
+
     if (stick) setTimeout(scrollToBottom, 40);
 
     try {
@@ -645,7 +665,6 @@ export default function ChatPage() {
           realChatId = String(startData.chat_id);
           console.log("Real chat created with ID:", realChatId);
 
-          // 🔹 ВАЖНО: Обновляем состояние перед навигацией
           setChats((prev) => [
             ...prev,
             {
@@ -681,22 +700,22 @@ export default function ChatPage() {
       console.log("=== SENDING MESSAGE TO REAL CHAT ===");
       console.log("Real chat ID:", realChatId);
       console.log("WebSocket connected:", isConnected);
+      console.log("Replying to:", currentReplyTo); // 🔹 Логируем информацию об ответе
 
       // 🔹 ПРИОРИТЕТ: Отправка через WebSocket если подключен
       if (isConnected) {
         console.log("Sending via WebSocket");
 
-        // 🔹 ИСПРАВЛЕННЫЙ формат сообщения для WebSocket
         const wsMessage = {
           action: "send_message",
           chat_id: realChatId,
           message: text,
           temp_id: tempMsgId,
           type: "text",
-          // 🔹 ДОБАВЛЕНО: информация об ответе
-          reply_to: replyTo
+          // 🔹 Используем сохраненное значение
+          reply_to: currentReplyTo
             ? {
-                message_id: replyTo.id,
+                message_id: currentReplyTo.id,
                 chat_id: realChatId,
               }
             : undefined,
@@ -704,19 +723,15 @@ export default function ChatPage() {
 
         console.log("WebSocket message payload:", wsMessage);
 
-        // Отправляем через WebSocket
         sendMessage(wsMessage);
 
-        // Резерв: если через 3 секунды нет подтверждения, пробуем HTTP
         const fallbackTimeout = setTimeout(() => {
-  console.log("WebSocket timeout, falling back to HTTP");
-  sendViaHttp(realChatId, text, tempMsgId, replyTo); // 🔹 ДОБАВЛЕНО replyTo
-}, 3000);
+          console.log("WebSocket timeout, falling back to HTTP");
+          sendViaHttp(realChatId, text, tempMsgId, currentReplyTo);
+        }, 3000);
 
-        // Очищаем таймаут при успешном получении подтверждения
         const cleanup = () => clearTimeout(fallbackTimeout);
 
-        // Временная подписка на подтверждение отправки
         const handleSentConfirmation = (message: any) => {
           if (message.temp_id === tempMsgId || message.id_message) {
             console.log("Message sent confirmation received:", message);
@@ -738,14 +753,13 @@ export default function ChatPage() {
 
         onMessage(handleSentConfirmation);
 
-        // Обновляем список чатов
         setTimeout(() => {
           loadChats(true);
         }, 1000);
       } else {
         // 🔹 РЕЗЕРВ: Отправка через HTTP если WebSocket не доступен
         console.log("WebSocket not connected, sending via HTTP");
-        sendViaHttp(realChatId, text, tempMsgId);
+        sendViaHttp(realChatId, text, tempMsgId, currentReplyTo);
       }
     } catch (error) {
       console.error("Send message error:", error);
@@ -754,7 +768,7 @@ export default function ChatPage() {
       );
       alert("Ошибка сети при отправке");
     }
-    setReplyingTo(null);
+    // 🔹 УБИРАЕМ setReplyingTo(null) отсюда - уже сбросили выше
   };
 
   // 🔹 УПРОЩЕННАЯ функция для выбора файла
@@ -808,287 +822,296 @@ export default function ChatPage() {
   };
 
   // 🔹 ОБНОВЛЕННАЯ функция отправки медиа с поддержкой ответов
-const handleSendMedia = async (file: File) => {
-  if (!chatId) {
-    console.log("Cannot send media: no chatId");
-    return;
-  }
-
-  const now = Date.now();
-  const tempMsgId = crypto.randomUUID();
-
-  // Определяем тип файла
-  const getFileType = (
-    mimeType: string
-  ): "image" | "video" | "document" | "audio" => {
-    if (mimeType.startsWith("image/")) return "image";
-    if (mimeType.startsWith("video/")) return "video";
-    if (mimeType.startsWith("audio/")) return "audio";
-    return "document";
-  };
-
-  const fileType = getFileType(file.type);
-
-  // Оптимистичное сообщение
-  const optimistic: Message = {
-    id: tempMsgId,
-    chatId,
-    author: "me",
-    text: getMediaText(fileType, file.name),
-    time: fmtTime(now),
-    createdAt: now,
-    status: "sent",
-    // 🔹 ДОБАВЛЕНО: информация об ответе для медиа
-    replyTo: replyingTo ? {
-      id: replyingTo.id,
-      author: replyingTo.author,
-      text: replyingTo.text,
-      media: replyingTo.media
-    } : undefined,
-    media: {
-      url: URL.createObjectURL(file),
-      type: fileType,
-      name: file.name,
-      size: file.size,
-      mime: file.type,
-    },
-  };
-
-  const stick = isNearBottom();
-  setMessages((prev) =>
-    [...prev, optimistic].sort(
-      (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
-    )
-  );
-  if (stick) setTimeout(scrollToBottom, 40);
-
-  try {
-    let realChatId = chatId;
-
-    // 🔹 Обработка временного чата
-    if (isTempChat && tempPhone) {
-      console.log("=== CREATING REAL CHAT FROM TEMP FOR MEDIA ===");
-
-      if (tempPhone.length !== 11) {
-        throw new Error(
-          `Неверная длина номера: ${tempPhone.length} цифр. Должно быть 11.`
-        );
-      }
-
-      const apiPhone = `${tempPhone}@c.us`;
-      console.log("API phone for media:", apiPhone);
-
-      const start = await fetch("/api/whatsapp/chats/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: apiPhone }),
-      });
-
-      if (!start.ok) {
-        const errorData = await start
-          .json()
-          .catch(() => ({ error: "Unknown error" }));
-        throw new Error(errorData?.error || "Не удалось создать чат");
-      }
-
-      const startData = await start.json();
-
-      if (!startData?.chat_id) {
-        throw new Error("Сервер не вернул chat_id");
-      }
-
-      realChatId = String(startData.chat_id);
-      console.log("Real chat created for media with ID:", realChatId);
-
-      // Обновляем состояние
-      setChats((prev) => [
-        {
-          id: realChatId,
-          chat_id: realChatId,
-          is_group: false,
-          name: tempPhone,
-          phone: tempPhone,
-          lastMessage: "📎 Медиа",
-          time: fmtTime(now),
-          unread: 0,
-          avatarFallback: tempPhone.slice(0, 2),
-          avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
-            tempPhone
-          )}`,
-          updatedAt: now,
-        },
-        ...prev,
-      ]);
-
-      router.replace(`/${realChatId}`);
+  const handleSendMedia = async (file: File) => {
+    if (!chatId) {
+      console.log("Cannot send media: no chatId");
+      return;
     }
 
-    console.log("=== SENDING FILE TO CHAT ===");
-    console.log("Real chat ID:", realChatId);
-    console.log("File:", file.name, file.type, file.size);
-    console.log("Replying to:", replyingTo); // 🔹 Логируем информацию об ответе
+    const now = Date.now();
+    const tempMsgId = crypto.randomUUID();
 
-    // 🔹 СОЗДАЕМ FormData с правильной структурой
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("caption", file.name);
-    
-    // 🔹 ДОБАВЛЯЕМ информацию об ответе если есть
-    if (replyingTo) {
-      formData.append("reply_to_message_id", replyingTo.id);
-    }
-    
-    console.log("Sending FormData to API...");
+    // Определяем тип файла
+    const getFileType = (
+      mimeType: string
+    ): "image" | "video" | "document" | "audio" => {
+      if (mimeType.startsWith("image/")) return "image";
+      if (mimeType.startsWith("video/")) return "video";
+      if (mimeType.startsWith("audio/")) return "audio";
+      return "document";
+    };
 
-    // 🔹 ОТПРАВЛЯЕМ через API
-    const sendMediaRes = await fetch(
-      `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send/media`,
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
+    const fileType = getFileType(file.type);
 
-    console.log("Send media response status:", sendMediaRes.status);
+    // Оптимистичное сообщение
+    const optimistic: Message = {
+      id: tempMsgId,
+      chatId,
+      author: "me",
+      text: getMediaText(fileType, file.name),
+      time: fmtTime(now),
+      createdAt: now,
+      status: "sent",
+      // 🔹 ДОБАВЛЕНО: информация об ответе для медиа
+      replyTo: replyingTo
+        ? {
+            id: replyingTo.id,
+            author: replyingTo.author,
+            text: replyingTo.text,
+            media: replyingTo.media,
+          }
+        : undefined,
+      media: {
+        url: URL.createObjectURL(file),
+        type: fileType,
+        name: file.name,
+        size: file.size,
+        mime: file.type,
+      },
+    };
 
-    // 🔹 УЛУЧШЕННАЯ ОБРАБОТКА ОТВЕТА
-    let responseData;
-    try {
-      const responseText = await sendMediaRes.text();
-      console.log("Send media response text:", responseText);
-
-      responseData = responseText ? JSON.parse(responseText) : {};
-    } catch (parseError) {
-      console.error("Failed to parse send media response:", parseError);
-      throw new Error("Неверный формат ответа от сервера");
-    }
-
-    if (!sendMediaRes.ok) {
-      console.error("Send media API error:", responseData);
-
-      // 🔹 ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ОБ ОШИБКЕ 422
-      if (sendMediaRes.status === 422) {
-        const errorDetails =
-          responseData.details ||
-          responseData.error ||
-          "Неизвестная ошибка валидации";
-        throw new Error(`Ошибка валидации: ${JSON.stringify(errorDetails)}`);
-      }
-
-      throw new Error(responseData.error || `HTTP ${sendMediaRes.status}`);
-    }
-
-    console.log("Media sent successfully:", responseData);
-
-    // Обновляем сообщение
+    const stick = isNearBottom();
     setMessages((prev) =>
-      prev.map((m) =>
-        m.id === tempMsgId
-          ? {
-              ...m,
-              id: responseData?.id_message || tempMsgId,
-              status: "delivered",
-              media: m.media
-                ? {
-                    ...m.media,
-                    url:
-                      responseData?.media_url ||
-                      responseData?.url ||
-                      m.media.url,
-                  }
-                : m.media,
-            }
-          : m
+      [...prev, optimistic].sort(
+        (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
       )
     );
+    if (stick) setTimeout(scrollToBottom, 40);
 
-    // 🔹 Сбрасываем состояние ответа после успешной отправки
-    setReplyingTo(null);
-
-    // Обновляем чаты и сообщения
-    setTimeout(() => {
-      loadMessages(realChatId, true);
-      loadChats(true);
-    }, 1000);
-  } catch (error) {
-    console.error("Send media error:", error);
-
-    // Отмечаем сообщение как failed
-    setMessages((prev) =>
-      prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
-    );
-
-    // 🔹 БОЛЕЕ ИНФОРМАТИВНОЕ СООБЩЕНИЕ ОБ ОШИБКЕ
-    const errorMessage =
-      error instanceof Error ? error.message : "Неизвестная ошибка";
-
-    alert(`Ошибка при отправке файла "${file.name}": ${errorMessage}`);
-  }
-};
-
-  // 🔹 Вспомогательная функция для HTTP отправки
-const sendViaHttp = async (
-  realChatId: string,
-  text: string,
-  tempMsgId: string,
-  replyTo?: ReplyMessage // 🔹 ДОБАВЛЕНО параметр replyTo
-) => {
-  try {
-    const sendRes = await fetch(
-      `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          text,
-          // 🔹 ДОБАВЛЕНО: информация об ответе
-          reply_to: replyTo ? {
-            message_id: replyTo.id
-          } : undefined
-        }),
-      }
-    );
-
-    let sendData;
     try {
-      sendData = await sendRes.json();
-    } catch (parseError) {
-      console.error("Failed to parse send message response:", parseError);
-      sendData = { error: "Invalid response" };
-    }
+      let realChatId = chatId;
 
-    if (sendRes.ok) {
-      console.log("Message sent successfully via HTTP");
+      // 🔹 Обработка временного чата
+      if (isTempChat && tempPhone) {
+        console.log("=== CREATING REAL CHAT FROM TEMP FOR MEDIA ===");
+
+        if (tempPhone.length !== 11) {
+          throw new Error(
+            `Неверная длина номера: ${tempPhone.length} цифр. Должно быть 11.`
+          );
+        }
+
+        const apiPhone = `${tempPhone}@c.us`;
+        console.log("API phone for media:", apiPhone);
+
+        const start = await fetch("/api/whatsapp/chats/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: apiPhone }),
+        });
+
+        if (!start.ok) {
+          const errorData = await start
+            .json()
+            .catch(() => ({ error: "Unknown error" }));
+          throw new Error(errorData?.error || "Не удалось создать чат");
+        }
+
+        const startData = await start.json();
+
+        if (!startData?.chat_id) {
+          throw new Error("Сервер не вернул chat_id");
+        }
+
+        realChatId = String(startData.chat_id);
+        console.log("Real chat created for media with ID:", realChatId);
+
+        // Обновляем состояние
+        setChats((prev) => [
+          {
+            id: realChatId,
+            chat_id: realChatId,
+            is_group: false,
+            name: tempPhone,
+            phone: tempPhone,
+            lastMessage: "📎 Медиа",
+            time: fmtTime(now),
+            unread: 0,
+            avatarFallback: tempPhone.slice(0, 2),
+            avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
+              tempPhone
+            )}`,
+            updatedAt: now,
+          },
+          ...prev,
+        ]);
+
+        router.replace(`/${realChatId}`);
+      }
+
+      console.log("=== SENDING FILE TO CHAT ===");
+      console.log("Real chat ID:", realChatId);
+      console.log("File:", file.name, file.type, file.size);
+      console.log("Replying to:", replyingTo); // 🔹 Логируем информацию об ответе
+
+      // 🔹 СОЗДАЕМ FormData с правильной структурой
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("caption", file.name);
+
+      // 🔹 ДОБАВЛЯЕМ информацию об ответе если есть
+      if (replyingTo) {
+        formData.append("reply_to_message_id", replyingTo.id);
+      }
+
+      console.log("Sending FormData to API...");
+
+      // 🔹 ОТПРАВЛЯЕМ через API
+      const sendMediaRes = await fetch(
+        `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send/media`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      console.log("Send media response status:", sendMediaRes.status);
+
+      // 🔹 УЛУЧШЕННАЯ ОБРАБОТКА ОТВЕТА
+      let responseData;
+      try {
+        const responseText = await sendMediaRes.text();
+        console.log("Send media response text:", responseText);
+
+        responseData = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error("Failed to parse send media response:", parseError);
+        throw new Error("Неверный формат ответа от сервера");
+      }
+
+      if (!sendMediaRes.ok) {
+        console.error("Send media API error:", responseData);
+
+        // 🔹 ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ОБ ОШИБКЕ 422
+        if (sendMediaRes.status === 422) {
+          const errorDetails =
+            responseData.details ||
+            responseData.error ||
+            "Неизвестная ошибка валидации";
+          throw new Error(`Ошибка валидации: ${JSON.stringify(errorDetails)}`);
+        }
+
+        throw new Error(responseData.error || `HTTP ${sendMediaRes.status}`);
+      }
+
+      console.log("Media sent successfully:", responseData);
+
+      // Обновляем сообщение
       setMessages((prev) =>
         prev.map((m) =>
           m.id === tempMsgId
             ? {
                 ...m,
-                id: sendData?.id_message || tempMsgId,
+                id: responseData?.id_message || tempMsgId,
                 status: "delivered",
+                media: m.media
+                  ? {
+                      ...m.media,
+                      url:
+                        responseData?.media_url ||
+                        responseData?.url ||
+                        m.media.url,
+                    }
+                  : m.media,
               }
             : m
         )
       );
+
+      // 🔹 Сбрасываем состояние ответа после успешной отправки
+      setReplyingTo(null);
+
+      // Обновляем чаты и сообщения
       setTimeout(() => {
         loadMessages(realChatId, true);
         loadChats(true);
       }, 1000);
-    } else {
-      console.error("Failed to send message via HTTP:", sendData);
+    } catch (error) {
+      console.error("Send media error:", error);
+
+      // Отмечаем сообщение как failed
       setMessages((prev) =>
         prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
       );
-      alert(sendData?.error || "Не удалось отправить сообщение");
-    }
-  } catch (error) {
-    console.error("HTTP send error:", error);
-    setMessages((prev) =>
-      prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
-    );
-  }
-};
 
+      // 🔹 БОЛЕЕ ИНФОРМАТИВНОЕ СООБЩЕНИЕ ОБ ОШИБКЕ
+      const errorMessage =
+        error instanceof Error ? error.message : "Неизвестная ошибка";
+
+      alert(`Ошибка при отправке файла "${file.name}": ${errorMessage}`);
+    }
+  };
+
+  const sendViaHttp = async (
+    realChatId: string,
+    text: string,
+    tempMsgId: string,
+    replyTo?: ReplyMessage
+  ) => {
+    try {
+      console.log("🔹 Sending HTTP request with replyTo:", replyTo);
+
+      // 🔹 ПРАВИЛЬНАЯ СТРУКТУРА ДЛЯ ВАШЕГО API
+      const requestBody: any = {
+        text: text,
+      };
+
+      if (replyTo) {
+        requestBody.reply_to = {
+          message_id: replyTo.id,
+        };
+      }
+
+      console.log("🔹 HTTP Request body:", requestBody);
+
+      const sendRes = await fetch(
+        `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      let sendData;
+      try {
+        sendData = await sendRes.json();
+      } catch (parseError) {
+        console.error("Failed to parse send message response:", parseError);
+        sendData = { error: "Invalid response" };
+      }
+
+      if (sendRes.ok) {
+        console.log("Message sent successfully via HTTP");
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempMsgId
+              ? {
+                  ...m,
+                  id: sendData?.id_message || tempMsgId,
+                  status: "delivered",
+                }
+              : m
+          )
+        );
+        setTimeout(() => {
+          loadMessages(realChatId, true);
+          loadChats(true);
+        }, 1000);
+      } else {
+        console.error("Failed to send message via HTTP:", sendData);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
+        );
+        alert(sendData?.error || "Не удалось отправить сообщение");
+      }
+    } catch (error) {
+      console.error("HTTP send error:", error);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempMsgId ? { ...m, status: "failed" } : m))
+      );
+    }
+  };
   // Effects
   useEffect(() => {
     loadChats();
@@ -1265,10 +1288,7 @@ const sendViaHttp = async (
               <div className="h-10 mx-2 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" />
               {/* Скелетоны чатов */}
               {Array.from({ length: 8 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 p-4"
-                >
+                <div key={i} className="flex items-center gap-3 p-4">
                   <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-gray-800 animate-pulse" />
                   <div className="flex-1 space-y-1">
                     <div className="h-3 w-3/4 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
@@ -1291,11 +1311,36 @@ const sendViaHttp = async (
             />
           )}
         </aside>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (messages.length > 0) {
+              const lastMessage = messages[messages.length - 1];
+              const testReply: ReplyMessage = {
+                id: lastMessage.id,
+                author: lastMessage.author,
+                text: lastMessage.text,
+                media: lastMessage.media
+                  ? {
+                      type: lastMessage.media.type,
+                      name: lastMessage.media.name,
+                    }
+                  : undefined,
+              };
+              console.log("Setting debug reply:", testReply);
+              setReplyingTo(testReply);
+            }
+          }}
+          className="absolute top-2 left-2 z-50"
+        >
+          Test Reply to Last
+        </Button>
 
         {/* Chat area */}
         <main className="flex-1 flex flex-col">
           {/* 💬 WhatsApp Style: Мобильный хедер чата */}
-          <div 
+          <div
             // 📌 Изменение: Фон и цвет текста как в WhatsApp
             className="md:hidden border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
           >
@@ -1315,12 +1360,15 @@ const sendViaHttp = async (
                   <div className="flex items-center gap-3 w-full pl-2">
                     {/* Аватар собеседника */}
                     <Avatar className="h-10 w-10 flex-shrink-0">
-                      <AvatarImage src={selectedChat.avatarUrl} alt={selectedChat.name} />
+                      <AvatarImage
+                        src={selectedChat.avatarUrl}
+                        alt={selectedChat.name}
+                      />
                       <AvatarFallback className="bg-green-500 text-white">
                         {selectedChat.avatarFallback}
                       </AvatarFallback>
                     </Avatar>
-                    
+
                     {/* Имя и статус */}
                     <div className="text-left truncate">
                       <div className="font-semibold text-base truncate">
@@ -1333,7 +1381,9 @@ const sendViaHttp = async (
                   </div>
                 ) : (
                   // Сообщение при отсутствии выбранного чата
-                  <div className="font-medium text-gray-500 dark:text-gray-400">Выберите чат</div>
+                  <div className="font-medium text-gray-500 dark:text-gray-400">
+                    Выберите чат
+                  </div>
                 )}
               </div>
 
@@ -1346,9 +1396,15 @@ const sendViaHttp = async (
                   onClick={forceRefresh}
                   disabled={loadingChats}
                 >
-                  <RefreshCw className={`h-5 w-5 ${loadingChats ? "animate-spin text-green-500" : "text-gray-500"}`} />
+                  <RefreshCw
+                    className={`h-5 w-5 ${
+                      loadingChats
+                        ? "animate-spin text-green-500"
+                        : "text-gray-500"
+                    }`}
+                  />
                 </Button>
-                
+
                 {/* Меню чата */}
                 <Button variant="ghost" size="icon">
                   <MoreVertical className="h-5 w-5 text-gray-500" />
@@ -1380,24 +1436,28 @@ const sendViaHttp = async (
           {/* Messages */}
           {chatId ? (
             <ScrollArea
-              className="flex-1"
+              className="flex-1 "
               ref={(el) => {
                 const vp = el?.querySelector(
                   "[data-radix-scroll-area-viewport]"
                 ) as HTMLDivElement | null;
                 scrollContainerRef.current = vp ?? null;
               }}
-              
-              style={{ 
-                  backgroundImage: `url('/whatsapp-bg-tile.png')`, // Если есть файл плитки
-                  backgroundAttachment: 'fixed', 
-                  backgroundRepeat: 'repeat',
-                  backgroundColor: '#ECE5DD', // Стандартный светло-серый фон WhatsApp
+              style={{
+                backgroundImage: `url('/telegramm-bg-tile.png')`,
+                backgroundAttachment: "fixed",
+                backgroundRepeat: "no-repeat",
+                // 🚀 ГЛАВНОЕ ИЗМЕНЕНИЕ: Установка размера фона
+                backgroundSize: "cover", // или '100% 100%', если нужно точное заполнение
+                backgroundColor: "#ECE5DD",
               }}
             >
+                           {" "}
               <div className="px-3 md:px-6 py-4 space-y-3">
+                               {" "}
                 {loadingMessages ? (
                   <>
+                                       {" "}
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div
                         key={i}
@@ -1405,15 +1465,20 @@ const sendViaHttp = async (
                           i % 2 ? "justify-end" : "justify-start"
                         }`}
                       >
+                                               {" "}
                         <div className="h-12 w-56 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+                                             {" "}
                       </div>
                     ))}
+                                     {" "}
                   </>
                 ) : messages.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">
+                                       {" "}
                     {isTempChat
                       ? "Напишите первое сообщение — чат ещё не создан на сервере"
                       : "Нет сообщений"}
+                                     {" "}
                   </div>
                 ) : (
                   messages.map((m) => (
@@ -1422,19 +1487,20 @@ const sendViaHttp = async (
                       msg={m}
                       onReply={handleReplyToMessage}
                       isReplying={replyingTo?.id === m.id}
-                      // 📌 Примечание: MessageBubble должен иметь WhatsApp стили пузырей!
                     />
                   ))
                 )}
-                <div ref={bottomRef} />
+                                <div ref={bottomRef} />             {" "}
               </div>
+                         {" "}
             </ScrollArea>
           ) : (
             // Экран выбора чата (уже стилизован)
             <div className="flex-1 flex items-center justify-center p-4">
               <div className="text-center max-w-sm">
                 <div className="text-2xl font-semibold mb-2 text-green-500">
-                  <MessageCircleMore className="inline h-6 w-6 mb-1" /> WhatsApp Web
+                  <MessageCircleMore className="inline h-6 w-6 mb-1" /> WhatsApp
+                  Web
                 </div>
                 <p className="text-muted-foreground mb-4">
                   Начните общение, выбрав существующий чат или нажав на меню
@@ -1470,5 +1536,5 @@ const sendViaHttp = async (
         </main>
       </div>
     </TooltipProvider>
-);
+  );
 }

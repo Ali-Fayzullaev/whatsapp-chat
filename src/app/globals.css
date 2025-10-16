@@ -115,3 +115,19 @@
   background-size: 100px 100px;
   background-color: #f0f2f5;
 }
+
+
+/* В ваш globals.css добавьте */
+.telegram-bg {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.message-bubble-me {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.message-bubble-them {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
