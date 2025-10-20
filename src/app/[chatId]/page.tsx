@@ -106,6 +106,83 @@ export default function ChatPage() {
   // В рендере добавьте проверку:
   console.log("🔹 RENDER: Current replyingTo state:", replyingTo);
 
+  // 🗑️ Функция для удаления сообщений
+  const handleDeleteMessage = async (messageId: string, remote: boolean = false) => {
+    if (!chatId) {
+      console.log("Cannot delete: no chatId");
+      return;
+    }
+
+    console.log("=== DELETE MESSAGE ===");
+    console.log("Message ID:", messageId);
+    console.log("Chat ID:", chatId);
+    console.log("Remote delete:", remote);
+
+    try {
+      // Оптимистично удаляем из UI
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+
+      const deleteUrl = `/api/whatsapp/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`;
+      const params = new URLSearchParams();
+      
+      if (remote) {
+        params.set('remote', 'true');
+      }
+
+      const finalUrl = params.toString() ? `${deleteUrl}?${params}` : deleteUrl;
+
+      console.log("Sending DELETE request to:", finalUrl);
+
+      const response = await fetch(finalUrl, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${apiConfig.getAccessToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const responseData = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        console.log("✅ Message deleted successfully:", responseData);
+        
+        // Обновляем чаты через небольшую задержку
+        setTimeout(() => {
+          loadChats(true);
+        }, 500);
+        
+      } else {
+        console.error("❌ Failed to delete message:", response.status, responseData);
+        
+        // Восстанавливаем сообщение в случае ошибки
+        // (Здесь можно было бы сохранить оригинальное сообщение для восстановления)
+        
+        alert(
+          responseData.error || 
+          `Не удалось удалить сообщение (${response.status})`
+        );
+
+        // Перезагружаем сообщения чтобы восстановить состояние
+        if (chatId) {
+          loadMessages(chatId, true);
+        }
+      }
+
+    } catch (error) {
+      console.error("Delete message error:", error);
+      
+      alert(
+        "Ошибка при удалении сообщения: " + 
+        (error instanceof Error ? error.message : "Неизвестная ошибка")
+      );
+
+      // Перезагружаем сообщения в случае ошибки
+      if (chatId) {
+        loadMessages(chatId, true);
+      }
+    }
+  };
+
   // Функции для скролла
   const isNearBottom = () => {
     const el = scrollContainerRef.current;
@@ -673,7 +750,10 @@ export default function ChatPage() {
         try {
           const start = await fetch("/api/whatsapp/chats/start", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiConfig.getAccessToken()}`
+            },
             body: JSON.stringify({ phone: apiPhone }),
           });
 
@@ -951,7 +1031,10 @@ export default function ChatPage() {
 
         const start = await fetch("/api/whatsapp/chats/start", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiConfig.getAccessToken()}`
+          },
           body: JSON.stringify({ phone: apiPhone }),
         });
 
@@ -1123,7 +1206,10 @@ export default function ChatPage() {
         `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiConfig.getAccessToken()}`
+          },
           body: JSON.stringify(requestBody),
         }
       );
@@ -1534,7 +1620,7 @@ export default function ChatPage() {
           {/* Messages */}
           {chatId ? (
             <ScrollArea
-              className="flex-1 "
+              className="flex-1"
               ref={(el) => {
                 const vp = el?.querySelector(
                   "[data-radix-scroll-area-viewport]"
@@ -1585,6 +1671,7 @@ export default function ChatPage() {
                       msg={m}
                       onReply={handleReplyToMessage}
                       isReplying={replyingTo?.id === m.id}
+                      onDelete={handleDeleteMessage}
                     />
                   ))
                 )}

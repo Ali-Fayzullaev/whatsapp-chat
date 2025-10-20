@@ -9,7 +9,8 @@ import {
   Video, 
   Mic2Icon,
   Reply,
-  MoreHorizontal
+  MoreHorizontal,
+  Trash2
 } from "lucide-react";
 import type { Message } from "./types";
 import { Button } from "@/components/ui/button";
@@ -20,17 +21,28 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface MessageBubbleProps {
   msg: Message;
   onReply?: (message: Message) => void;
   isReplying?: boolean;
+  onDelete?: (messageId: string, remote?: boolean) => void;
 }
 
-export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) {
+export function MessageBubble({ msg, onReply, isReplying, onDelete }: MessageBubbleProps) {
   const isMe = msg.author === "me";
   const [imageError, setImageError] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteRemote, setDeleteRemote] = useState(false);
 
   const handleDownload = (url: string, filename: string) => {
     const link = document.createElement('a');
@@ -48,6 +60,22 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
       console.warn("🔹 onReply function is not provided");
     }
     setShowMenu(false);
+  };
+
+  const handleDelete = (remote: boolean = false) => {
+    setDeleteRemote(remote);
+    setShowDeleteDialog(true);
+    setShowMenu(false);
+  };
+
+  const confirmDelete = () => {
+    console.log(`🗑️ Delete confirmed for message: ${msg.id} (remote: ${deleteRemote})`);
+    if (onDelete) {
+      onDelete(msg.id, deleteRemote);
+    } else {
+      console.warn("🗑️ onDelete function is not provided");
+    }
+    setShowDeleteDialog(false);
   };
 
   // 🔹 Telegram Style: Рендеринг сообщения, на которое отвечают
@@ -355,6 +383,26 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
                 <File className="h-4 w-4 mr-2" />
                 Копировать текст
               </DropdownMenuItem>
+              {onDelete && (
+                <>
+                  <DropdownMenuItem 
+                    onClick={() => handleDelete(false)}
+                    className="text-orange-600 focus:text-orange-700"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Удалить для себя
+                  </DropdownMenuItem>
+                  {isMe && (
+                    <DropdownMenuItem 
+                      onClick={() => handleDelete(true)}
+                      className="text-red-600 focus:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Удалить у всех
+                    </DropdownMenuItem>
+                  )}
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -391,6 +439,52 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
             ))}
         </div>
       </div>
+
+      {/* Диалог подтверждения удаления */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-500" />
+              Удалить сообщение
+            </DialogTitle>
+            <DialogDescription className="text-left">
+              {deleteRemote ? (
+                <>
+                  <strong>Удалить у всех?</strong>
+                  <br />
+                  Это сообщение будет удалено для всех участников чата. 
+                  Это действие нельзя отменить.
+                </>
+              ) : (
+                <>
+                  <strong>Удалить для себя?</strong>
+                  <br />
+                  Сообщение будет удалено только в вашем чате. 
+                  Другие участники по-прежнему смогут его видеть.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              className="w-full sm:w-auto"
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              className="w-full sm:w-auto"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {deleteRemote ? "Удалить у всех" : "Удалить для себя"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

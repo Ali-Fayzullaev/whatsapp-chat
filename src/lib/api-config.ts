@@ -21,6 +21,7 @@ class ApiConfig {
   }
 
   getBaseUrl(): string {
+    console.log('🔗 Returning base URL:', this.baseUrl);
     return this.baseUrl;
   }
 
@@ -52,14 +53,17 @@ class ApiConfig {
       return this.accessToken;
     }
 
-    // Если нет кэша, загружаем из хранилища
-    const storedToken = tokenStorage.getToken();
-    if (storedToken) {
-      this.accessToken = storedToken; // Кэшируем
-      return storedToken;
+    // Если нет кэша, загружаем из хранилища (только на клиенте)
+    if (typeof window !== 'undefined') {
+      const storedToken = tokenStorage.getToken();
+      if (storedToken) {
+        this.accessToken = storedToken; // Кэшируем
+        return storedToken;
+      }
     }
 
-    // Fallback для разработки
+    // Fallback для разработки (особенно важно на сервере)
+    console.log('🔄 Using fallback token (server-side or no stored token)');
     return this.fallbackToken;
   }
 

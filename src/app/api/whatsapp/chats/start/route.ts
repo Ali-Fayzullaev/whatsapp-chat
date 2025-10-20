@@ -17,12 +17,34 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Phone number must end with @c.us" }, { status: 400 });
     }
 
+    // 🔹 ДОБАВЛЕНО: Получаем токен авторизации из заголовка
+    const authHeader = req.headers.get('authorization');
+    let token = '';
+    
+    if (authHeader) {
+      token = authHeader.replace('Bearer ', '');
+    } else {
+      token = apiConfig.getAccessToken() || '';
+    }
+
+    if (!token) {
+      console.error('No access token available');
+      return Response.json(
+        { error: 'Authorization token required' },
+        { status: 401 }
+      );
+    }
+
     const apiUrl = `${apiConfig.getBaseUrl()}/api/chats/start`;
     console.log("Calling external API:", apiUrl);
     
+    // 🔹 ОБНОВЛЕНО: Используем токен из заголовка
     const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: apiConfig.getHeaders(),
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ phone }),
     });
 

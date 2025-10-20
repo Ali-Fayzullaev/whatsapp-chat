@@ -16,6 +16,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cha
     return Response.json({ error: "Текст обязателен" }, { status: 400 });
   }
 
+  // 🔹 ДОБАВЛЕНО: Получаем токен авторизации из заголовка
+  const authHeader = req.headers.get('authorization');
+  let token = '';
+  
+  if (authHeader) {
+    token = authHeader.replace('Bearer ', '');
+  } else {
+    token = apiConfig.getAccessToken() || '';
+  }
+
+  if (!token) {
+    console.error('No access token available');
+    return Response.json(
+      { error: 'Authorization token required' },
+      { status: 401 }
+    );
+  }
+
   try {
     const decodedId = decodeURIComponent(chatId);
     
@@ -34,14 +52,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cha
 
     console.log("Sending payload to external API:", payload);
 
-    // Получаем токен из заголовков запроса
-    const authHeader = req.headers.get('authorization');
-
+    // 🔹 ОБНОВЛЕНО: Используем токен который получили выше
     const res = await fetch(url, {
       method: "POST",
       headers: {
         'Content-Type': 'application/json',
-        ...(authHeader && { 'Authorization': authHeader }),
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(payload),
     });

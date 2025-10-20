@@ -12,6 +12,24 @@ export async function POST(
   console.log("=== SEND MEDIA MESSAGE API ===");
   console.log("Chat ID:", chatId);
 
+  // 🔹 ДОБАВЛЕНО: Получаем токен авторизации из заголовка
+  const authHeader = req.headers.get('authorization');
+  let token = '';
+  
+  if (authHeader) {
+    token = authHeader.replace('Bearer ', '');
+  } else {
+    token = apiConfig.getAccessToken() || '';
+  }
+
+  if (!token) {
+    console.error('No access token available');
+    return Response.json(
+      { error: 'Authorization token required' },
+      { status: 401 }
+    );
+  }
+
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
@@ -34,11 +52,8 @@ export async function POST(
 
     const decodedId = decodeURIComponent(chatId);
 
-    // 🔹 Получаем токен из заголовков запроса
-    const authHeader = req.headers.get('authorization');
-
     // 🔹 1. Загружаем файл на ваш сервер С АВТОРИЗАЦИЕЙ
-    const uploadResult = await uploadFileToYourServer(file, authHeader);
+    const uploadResult = await uploadFileToYourServer(file, `Bearer ${token}`);
 
     if (!uploadResult.success) {
       console.error("File upload failed:", uploadResult.error);
@@ -70,7 +85,7 @@ export async function POST(
       file.name,
       caption,
       replyToMessageId, // 🔹 ДОБАВЛЕНО
-      authHeader
+      token // 🔹 ОБНОВЛЕНО: Используем извлеченный токен
     );
 
     if (!sendResult.success) {
@@ -184,7 +199,7 @@ async function sendMediaToGreenAPI(
   fileName: string,
   caption: string | null,
   replyToMessageId?: string | null, // 🔹 ДОБАВЛЕНО
-  authHeader?: string | null
+  token?: string | null // 🔹 ОБНОВЛЕНО: Изменили название параметра
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
     console.log("Sending media to Green API...");
@@ -214,7 +229,7 @@ async function sendMediaToGreenAPI(
       method: "POST",
       headers: {
         'Content-Type': 'application/json',
-        ...(authHeader && { 'Authorization': authHeader }),
+        ...(token && { 'Authorization': `Bearer ${token}` }),
       },
       body: JSON.stringify(payload),
     });

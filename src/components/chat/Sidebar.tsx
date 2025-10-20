@@ -177,7 +177,7 @@ export function Sidebar({
           ) : (
             filteredChats.map((chat) => {
               const chatId = chat.id || chat.chat_id;
-              const chat_name = chat.lastMessage.sender.name || chatId.replace('@c.us', '');
+              const chat_name = chat.lastMessage?.sender?.name || chat.name || chatId?.replace('@c.us', '') || 'Неизвестный';
               if (!chatId) return null;
 
               return (
