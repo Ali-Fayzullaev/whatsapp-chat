@@ -14,6 +14,7 @@ import { MobileSidebar } from "@/components/chat/MobileSidebar";
 import { Menu, MessageCircleMore, MoreVertical, RefreshCw } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { FEATURES } from "@/config/features";
+import { apiConfig } from "@/lib/api-config";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -156,6 +157,8 @@ export default function ChatPage() {
         cache: "no-store",
         headers: {
           "Cache-Control": "no-cache",
+          "Authorization": `Bearer ${apiConfig.getAccessToken()}`,
+          "Content-Type": "application/json",
         },
       });
 
@@ -244,6 +247,8 @@ export default function ChatPage() {
           cache: "no-store",
           headers: {
             "Cache-Control": "no-cache",
+            "Authorization": `Bearer ${apiConfig.getAccessToken()}`,
+            "Content-Type": "application/json",
           },
         }
       );

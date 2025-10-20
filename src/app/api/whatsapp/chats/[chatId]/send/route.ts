@@ -2,8 +2,9 @@
 import { NextRequest } from "next/server";
 import { apiConfig } from "@/lib/api-config";
 
-export async function POST(req: NextRequest, { params }: { params: { chatId: string } }) {
-  const { chatId } = params;
+export async function POST(req: NextRequest, { params }: { params: Promise<{ chatId: string }> }) {
+  const resolvedParams = await params;
+  const { chatId } = resolvedParams;
   const { text, reply_to } = await req.json(); // 🔹 ИЗМЕНИЛ НА reply_to
   
   console.log("=== SEND MESSAGE API ===");
@@ -33,9 +34,15 @@ export async function POST(req: NextRequest, { params }: { params: { chatId: str
 
     console.log("Sending payload to external API:", payload);
 
+    // Получаем токен из заголовков запроса
+    const authHeader = req.headers.get('authorization');
+
     const res = await fetch(url, {
       method: "POST",
-      headers: apiConfig.getHeaders(),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader && { 'Authorization': authHeader }),
+      },
       body: JSON.stringify(payload),
     });
 

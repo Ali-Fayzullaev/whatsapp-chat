@@ -4,6 +4,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authAPI } from '@/lib/auth-api';
 import { apiConfig } from '@/lib/api-config';
+import { tokenStorage } from '@/lib/token-storage';
 import type { AuthState, LoginRequest, User } from '@/types/auth';
 
 interface AuthContextType extends AuthState {
@@ -44,9 +45,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
       // Проверяем есть ли сохраненный токен
-      const savedToken = typeof window !== 'undefined' 
-        ? localStorage.getItem('auth_token') 
-        : null;
+      const savedToken = tokenStorage.getToken();
       
       if (savedToken) {
         console.log('🔑 Found saved token, validating...');

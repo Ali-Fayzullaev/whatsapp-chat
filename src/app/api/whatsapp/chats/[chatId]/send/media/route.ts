@@ -4,9 +4,10 @@ import { apiConfig } from "@/lib/api-config";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { chatId: string } }
+  { params }: { params: Promise<{ chatId: string }> }
 ) {
-  const { chatId } = params;
+  const resolvedParams = await params;
+  const { chatId } = resolvedParams;
 
   console.log("=== SEND MEDIA MESSAGE API ===");
   console.log("Chat ID:", chatId);
@@ -33,8 +34,11 @@ export async function POST(
 
     const decodedId = decodeURIComponent(chatId);
 
+    // 🔹 Получаем токен из заголовков запроса
+    const authHeader = req.headers.get('authorization');
+
     // 🔹 1. Загружаем файл на ваш сервер С АВТОРИЗАЦИЕЙ
-    const uploadResult = await uploadFileToYourServer(file);
+    const uploadResult = await uploadFileToYourServer(file, authHeader);
 
     if (!uploadResult.success) {
       console.error("File upload failed:", uploadResult.error);
@@ -65,7 +69,8 @@ export async function POST(
       fullUrl,
       file.name,
       caption,
-      replyToMessageId // 🔹 ДОБАВЛЕНО
+      replyToMessageId, // 🔹 ДОБАВЛЕНО
+      authHeader
     );
 
     if (!sendResult.success) {
@@ -88,7 +93,8 @@ export async function POST(
 
 // 🔹 ФУНКЦИЯ ЗАГРУЗКИ ФАЙЛА НА ВАШ СЕРВЕР С АВТОРИЗАЦИЕЙ
 async function uploadFileToYourServer(
-  file: File
+  file: File,
+  authHeader?: string | null
 ): Promise<{ success: boolean; path?: string; error?: string }> {
   try {
     console.log("Uploading file to your server with authorization...");
@@ -113,7 +119,10 @@ async function uploadFileToYourServer(
     formData.append("file", file);
 
     // 🔹 ДОБАВЛЯЕМ AUTHORIZATION HEADER
-    const headers = apiConfig.getHeadersForFormData();
+    const headers: Record<string, string> = {};
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
     console.log("Upload headers:", headers);
 
     const res = await fetch(uploadUrl, {
@@ -174,7 +183,8 @@ async function sendMediaToGreenAPI(
   fileUrl: string,
   fileName: string,
   caption: string | null,
-  replyToMessageId?: string | null // 🔹 ДОБАВЛЕНО
+  replyToMessageId?: string | null, // 🔹 ДОБАВЛЕНО
+  authHeader?: string | null
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
     console.log("Sending media to Green API...");
@@ -203,8 +213,8 @@ async function sendMediaToGreenAPI(
     const res = await fetch(url, {
       method: "POST",
       headers: {
-        ...apiConfig.getHeaders(),
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
+        ...(authHeader && { 'Authorization': authHeader }),
       },
       body: JSON.stringify(payload),
     });

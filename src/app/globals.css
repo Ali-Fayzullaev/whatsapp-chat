@@ -7,6 +7,31 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Custom animations */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
 /* -------- Tailwind v4 theme bridge (даёт util-классы bg-background и т.д.) -------- */
 @theme inline {
   --color-background: var(--background);
@@ -86,36 +111,49 @@
 
 /* ---------- Base resets ---------- */
 @layer base {
-  * { @apply border-border; }
-  body { @apply bg-background text-foreground; }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
 
 /* ---------- Chat background with subtle pattern ---------- */
 .chat-bg {
   background-color: var(--chat-bg);
-  background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.03) 1px,
+    transparent 1px
+  );
   background-size: 8px 8px;
 }
 .dark .chat-bg {
-  background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.03) 1px,
+    transparent 1px
+  );
 }
-
-
 
 .bb {
-  border:  2px solid red;
+  border: 2px solid red;
 }
-
 
 /* В globals.css или в компоненте */
 .chat-background {
-  background-image: 
-    radial-gradient(circle at 25px 25px, rgba(255,255,255,0.3) 2%, transparent 2.5%),
-    radial-gradient(circle at 75px 75px, rgba(255,255,255,0.3) 2%, transparent 2.5%);
+  background-image: radial-gradient(
+      circle at 25px 25px,
+      rgba(255, 255, 255, 0.3) 2%,
+      transparent 2.5%
+    ),
+    radial-gradient(
+      circle at 75px 75px,
+      rgba(255, 255, 255, 0.3) 2%,
+      transparent 2.5%
+    );
   background-size: 100px 100px;
   background-color: #f0f2f5;
 }
-
 
 /* В ваш globals.css добавьте */
 .telegram-bg {

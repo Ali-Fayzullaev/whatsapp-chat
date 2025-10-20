@@ -1,4 +1,6 @@
 // src/lib/api-config.ts
+import { tokenStorage, TokenUtils } from './token-storage';
+
 class ApiConfig {
   private static instance: ApiConfig;
   private baseUrl = "https://socket.eldor.kz";
@@ -7,7 +9,7 @@ class ApiConfig {
   private fallbackToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImZ1bGxfbmFtZSI6InRlc3QiLCJ1c2VyX2lkIjoiMTIiLCJleHAiOjE3NjA5NTMwMzB9.hBjWO-KkYhgubovpHX50yU_V0lTHjYeRszKNxrWRS7E";
 
   private constructor() {
-    // Пытаемся загрузить токен из localStorage при инициализации
+    // Пытаемся загрузить токен из хранилища при инициализации
     this.loadTokenFromStorage();
   }
 
@@ -45,38 +47,64 @@ class ApiConfig {
 
   // 🔹 МЕТОДЫ ДЛЯ УПРАВЛЕНИЯ ТОКЕНАМИ
   private getCurrentToken(): string {
-    return this.accessToken || this.fallbackToken;
+    // Сначала проверяем кэшированный токен
+    if (this.accessToken) {
+      return this.accessToken;
+    }
+
+    // Если нет кэша, загружаем из хранилища
+    const storedToken = tokenStorage.getToken();
+    if (storedToken) {
+      this.accessToken = storedToken; // Кэшируем
+      return storedToken;
+    }
+
+    // Fallback для разработки
+    return this.fallbackToken;
   }
 
   setAccessToken(token: string): void {
     this.accessToken = token;
-    this.saveTokenToStorage(token);
+    tokenStorage.setToken(token);
+    console.log('🔑 Access token updated:', TokenUtils.maskToken(token));
   }
 
   clearAccessToken(): void {
     this.accessToken = null;
-    this.removeTokenFromStorage();
+    tokenStorage.removeToken();
+    console.log('🗑️ Access token cleared');
   }
 
   private loadTokenFromStorage(): void {
-    if (typeof window !== 'undefined') {
-      const savedToken = localStorage.getItem('auth_token');
-      if (savedToken) {
+    const savedToken = tokenStorage.getToken();
+    if (savedToken) {
+      // Проверяем не истек ли токен
+      if (!TokenUtils.isTokenExpired(savedToken)) {
         this.accessToken = savedToken;
+        console.log('✅ Token restored from storage:', TokenUtils.maskToken(savedToken));
+      } else {
+        console.log('⚠️ Stored token is expired, removing...');
+        tokenStorage.removeToken();
       }
     }
   }
 
-  private saveTokenToStorage(token: string): void {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('auth_token', token);
-    }
-  }
-
-  private removeTokenFromStorage(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('auth_token');
-    }
+  // 🔹 НОВЫЕ МЕТОДЫ ДЛЯ ДИАГНОСТИКИ
+  getTokenInfo(): {
+    current: string;
+    masked: string;
+    storage: { hasToken: boolean; storage: string[] };
+    isExpired: boolean;
+    payload: any | null;
+  } {
+    const current = this.getCurrentToken();
+    return {
+      current,
+      masked: TokenUtils.maskToken(current),
+      storage: tokenStorage.getTokenInfo(),
+      isExpired: TokenUtils.isTokenExpired(current),
+      payload: TokenUtils.getTokenPayload(current),
+    };
   }
 
   // 🔹 МЕТОД ДЛЯ ПОЛУЧЕНИЯ WEBSOCKET URL

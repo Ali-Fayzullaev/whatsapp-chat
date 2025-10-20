@@ -9,9 +9,15 @@ export async function GET(req: NextRequest) {
     const apiUrl = `${apiConfig.getBaseUrl()}/api/chats`;
     console.log('API URL:', apiUrl);
     
+    // Получаем токен из заголовков запроса
+    const authHeader = req.headers.get('authorization');
+    
     const res = await fetch(apiUrl, {
       cache: 'no-store',
-      headers: apiConfig.getHeaders(),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader && { 'Authorization': authHeader }),
+      },
     });
     
     console.log('API response status:', res.status);

@@ -4,9 +4,10 @@ import { apiConfig } from "@/lib/api-config";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { chatId: string } }
+  { params }: { params: Promise<{ chatId: string }> }
 ) {
-  const { chatId } = params;
+  const resolvedParams = await params;
+  const { chatId } = resolvedParams;
   
   console.log('Loading messages for chat:', chatId);
   
@@ -16,9 +17,15 @@ export async function GET(
     const apiUrl = `${apiConfig.getBaseUrl()}/api/chats/${decodedChatId}/messages`;
     console.log('Fetching from URL:', apiUrl);
     
+    // Получаем токен из заголовков запроса
+    const authHeader = req.headers.get('authorization');
+    
     const res = await fetch(apiUrl, {
       cache: 'no-store',
-      headers: apiConfig.getHeaders(),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader && { 'Authorization': authHeader }),
+      },
     });
 
     console.log('Messages API response status:', res.status);

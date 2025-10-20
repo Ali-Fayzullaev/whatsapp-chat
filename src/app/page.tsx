@@ -7,10 +7,11 @@ import { MediaTypeTester } from "@/components/MediaTypeTester";
 import { ReplyTester } from "@/components/ReplyTester";
 import { AuthTester } from "@/components/AuthTester";
 import { AuthStatusDemo } from "@/components/AuthStatusDemo";
+import { TokenStorageTester } from "@/components/TokenStorageTester";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
-type ViewType = 'menu' | 'websocket' | 'media' | 'reply' | 'auth';
+type ViewType = 'menu' | 'websocket' | 'media' | 'reply' | 'auth' | 'tokens';
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewType>('menu');
@@ -78,6 +79,22 @@ export default function Home() {
       </div>
     );
   }
+  
+  if (currentView === 'tokens') {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8 flex flex-col items-center">
+        <div className="mb-4">
+          <Button 
+            onClick={() => setCurrentView('menu')}
+            variant="outline"
+          >
+            ← Вернуться к меню
+          </Button>
+        </div>
+        <TokenStorageTester />
+      </div>
+    );
+  }
 
   // Временно показываем выбор - диагностика или чат
   return (
@@ -121,6 +138,13 @@ export default function Home() {
             className="w-full"
           >
             🔑 Тест аутентификации
+          </Button>
+          <Button 
+            onClick={() => setCurrentView('tokens')}
+            variant="outline"
+            className="w-full"
+          >
+            🔐 Система хранения токенов
           </Button>
         </div>
       </div>
