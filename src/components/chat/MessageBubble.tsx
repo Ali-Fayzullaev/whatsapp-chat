@@ -40,8 +40,12 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
   };
 
   const handleReply = () => {
+    console.log("🔹 Reply button clicked for message:", msg.id);
     if (onReply) {
+      console.log("🔹 Calling onReply function with message:", msg);
       onReply(msg);
+    } else {
+      console.warn("🔹 onReply function is not provided");
     }
     setShowMenu(false);
   };
@@ -81,47 +85,64 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
     );
   };
 
-  // 🔹 Функции для определения типа файла
+  // 🔹 Улучшенная функция определения типа файла
   const getFileTypeFromMessage = (msg: Message): string => {
-    if (msg.media?.type) return msg.media.type;
+    // 1. Проверяем указанный тип
+    if (msg.media?.type && msg.media.type !== 'document') {
+      return msg.media.type;
+    }
+    
+    // 2. Проверяем MIME-тип
     if (msg.media?.mime) {
       if (msg.media.mime.startsWith('image/')) return 'image';
       if (msg.media.mime.startsWith('video/')) return 'video';
       if (msg.media.mime.startsWith('audio/')) return 'audio';
     }
     
+    // 3. Проверяем расширение файла
     const fileName = msg.media?.name || msg.media?.url || '';
     const extension = fileName.split('.').pop()?.toLowerCase();
     
-    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
-    const videoExtensions = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv'];
-    const audioExtensions = ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a'];
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico'];
+    const videoExtensions = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', '3gp', 'ogv'];
+    const audioExtensions = ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'wma'];
     
     if (imageExtensions.includes(extension || '')) return 'image';
     if (videoExtensions.includes(extension || '')) return 'video';
     if (audioExtensions.includes(extension || '')) return 'audio';
     
+    // 4. Особая логика для UUID файлов
+    if (fileName.match(/^[a-f0-9-]+\.mp4$/i)) return 'video';
+    if (fileName.match(/^[a-f0-9-]+\.(jpg|jpeg|png|gif|webp)$/i)) return 'image';
+    if (fileName.match(/^[a-f0-9-]+\.(mp3|wav|ogg|aac)$/i)) return 'audio';
+    
     return 'document';
   };
 
   const getDisplayFileName = (): string => {
-    if (msg.media?.name && msg.media.name !== msg.media.url) {
+    // 1. Если есть нормальное имя файла - используем его
+    if (msg.media?.name && msg.media.name !== msg.media.url && !msg.media.name.match(/^[a-f0-9-]+\.\w+$/i)) {
       return msg.media.name;
     }
     
-    const fileName = msg.media?.url?.split('/').pop() || '';
+    // 2. Извлекаем имя из URL
+    const fileName = msg.media?.url?.split('/').pop() || msg.media?.name || '';
     const fileType = getFileTypeFromMessage(msg);
     
+    // 3. Для UUID файлов создаем красивое имя
     if (fileName.match(/^[a-f0-9-]+\.\w+$/i)) {
       const extension = fileName.split('.').pop()?.toUpperCase();
+      const timestamp = new Date().toLocaleDateString();
+      
       switch (fileType) {
         case 'image': return `Изображение.${extension}`;
         case 'video': return `Видео.${extension}`;
         case 'audio': return `Аудио.${extension}`;
-        default: return `Файл.${extension}`;
+        default: return `Документ.${extension}`;
       }
     }
     
+    // 4. Возвращаем оригинальное имя или fallback
     return fileName || 'Файл';
   };
 
@@ -130,6 +151,18 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
 
     const mediaType = getFileTypeFromMessage(msg);
     const displayFileName = getDisplayFileName();
+    
+    // 🔹 Добавляем логирование для отладки
+    if (msg.media.name?.includes('.mp4') || msg.media.url?.includes('.mp4')) {
+      console.log('🎥 Video media detected:', {
+        name: msg.media.name,
+        url: msg.media.url,
+        type: msg.media.type,
+        mime: msg.media.mime,
+        detectedType: mediaType,
+        displayFileName
+      });
+    }
 
     switch (mediaType) {
       case 'image':
@@ -158,21 +191,32 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
       
       case 'video':
         return (
-          <div className="mb-3 rounded-lg overflow-hidden">
-            <video 
-              controls 
-              className="w-full h-auto max-w-md rounded-lg"
-              preload="metadata"
-            >
-              <source src={msg.media.url} type={msg.media.mime} />
-              Ваш браузер не поддерживает видео.
-            </video>
+          <div className="mb-3 rounded-lg overflow-hidden bg-black">
+            <div className="relative">
+              <video 
+                controls 
+                className="w-full h-auto max-w-md rounded-lg"
+                preload="metadata"
+                poster="" // Можно добавить постер если есть
+                style={{ maxHeight: '400px' }}
+              >
+                <source src={msg.media.url} type={msg.media.mime || 'video/mp4'} />
+                Ваш браузер не поддерживает видео.
+              </video>
+              
+              {/* Показываем название файла если это не обычное имя */}
+              {displayFileName && displayFileName !== msg.media.url && (
+                <div className="absolute bottom-2 left-2 right-2 bg-black bg-opacity-50 text-white text-xs p-2 rounded">
+                  🎥 {displayFileName}
+                </div>
+              )}
+            </div>
           </div>
         );
       
       case 'audio':
         return (
-          <div className="mb-3 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg max-w-md">
+          <div className="mb-3 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg max-w-md w-[40vw]">
             <div className="flex items-center gap-3 mb-3">
               <div className="p-2 bg-blue-500 rounded-full">
                 <Mic2Icon className="h-4 w-4 text-white" />
@@ -254,17 +298,40 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
   const isMediaOnly = msg.media && !msg.text;
 
   return (
-    <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-4 group`}>
+    <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-4 group relative ${isReplying ? 'bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 -m-2' : ''}`}>
+      {/* 🔹 Кнопка ответа слева от сообщения (для чужих) или справа (для своих) */}
+      <div className={`${isMe ? 'order-2 ml-2' : 'order-1 mr-2'} flex items-start pt-3`}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleReply}
+          className={`h-8 w-8 transition-all duration-200 ${
+            isReplying 
+              ? 'opacity-100 scale-110' 
+              : 'opacity-0 group-hover:opacity-100'
+          } ${
+            isMe 
+              ? 'text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20' 
+              : 'text-gray-500 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+          } ${
+            isReplying ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600' : ''
+          }`}
+          title="Ответить на сообщение"
+        >
+          <Reply className="h-4 w-4" />
+        </Button>
+      </div>
+
       <div
         className={[
           "relative max-w-[70%] rounded-2xl px-4 py-3",
           isMe
-            ? "bg-blue-500 text-white rounded-br-md"
-            : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-md border border-gray-200 dark:border-gray-700",
+            ? "bg-blue-500 text-white rounded-br-md order-1"
+            : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-md border border-gray-200 dark:border-gray-700 order-2",
         ].join(" ")}
       >
-        {/* 🔹 Telegram Style: Меню с тремя точками */}
-        <div className="absolute top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        {/* 🔹 Дополнительное меню с тремя точками */}
+        <div className={`absolute top-2 ${isMe ? 'left-2' : 'right-2'} opacity-0 group-hover:opacity-100 transition-opacity duration-200`}>
           <DropdownMenu open={showMenu} onOpenChange={setShowMenu}>
             <DropdownMenuTrigger asChild>
               <Button
@@ -279,7 +346,7 @@ export function MessageBubble({ msg, onReply, isReplying }: MessageBubbleProps) 
                 <MoreHorizontal className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align={isMe ? "end" : "start"}>
+            <DropdownMenuContent align={isMe ? "start" : "end"}>
               <DropdownMenuItem onClick={handleReply}>
                 <Reply className="h-4 w-4 mr-2" />
                 Ответить

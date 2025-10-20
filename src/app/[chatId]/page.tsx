@@ -13,6 +13,7 @@ import { useWebSocket } from "@/providers/WebSocketProvider";
 import { MobileSidebar } from "@/components/chat/MobileSidebar";
 import { Menu, MessageCircleMore, MoreVertical, RefreshCw } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { FEATURES } from "@/config/features";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -57,7 +58,7 @@ export default function ChatPage() {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   // 🔹 WebSocket хуки ТОЛЬКО ОДИН РАЗ наверху
-  const { isConnected, sendMessage, onMessage, offMessage } = useWebSocket();
+  const { isConnected, connectionState, sendMessage, onMessage, offMessage, reconnect } = useWebSocket();
   const [messageReplies, setMessageReplies] = useState<
     Map<string, ReplyMessage>
   >(new Map());
@@ -73,7 +74,14 @@ export default function ChatPage() {
   // 🔹 Функция для ответа на сообщение
   const handleReplyToMessage = (message: Message) => {
     console.log("🔹 REPLY: Setting reply to message:", message);
-    setReplyingTo({
+    console.log("🔹 REPLY: Message details:", {
+      id: message.id,
+      author: message.author,
+      text: message.text,
+      hasMedia: !!message.media
+    });
+    
+    const replyData = {
       id: message.id,
       author: message.author,
       text: message.text,
@@ -83,7 +91,15 @@ export default function ChatPage() {
             name: message.media.name,
           }
         : undefined,
-    });
+    };
+    
+    console.log("🔹 REPLY: Setting replyingTo to:", replyData);
+    setReplyingTo(replyData);
+    
+    // Небольшая задержка для проверки что состояние обновилось
+    setTimeout(() => {
+      console.log("🔹 REPLY: State after 100ms:", replyingTo);
+    }, 100);
   };
 
   // В рендере добавьте проверку:
@@ -452,30 +468,53 @@ export default function ChatPage() {
     const detectMediaTypeFromData = (
       mediaData: any
     ): "image" | "video" | "audio" | "document" => {
+      console.log("🔍 Detecting media type:", mediaData);
+      
       // Если тип явно указан в данных
-      if (mediaData.type) {
+      if (mediaData.type && mediaData.type !== "document") {
+        console.log("✅ Using explicit type:", mediaData.type);
         return mediaData.type;
       }
 
       // Определяем по MIME типу
       if (mediaData.mime) {
-        if (mediaData.mime.startsWith("image/")) return "image";
-        if (mediaData.mime.startsWith("video/")) return "video";
-        if (mediaData.mime.startsWith("audio/")) return "audio";
+        if (mediaData.mime.startsWith("image/")) {
+          console.log("✅ Detected image by MIME:", mediaData.mime);
+          return "image";
+        }
+        if (mediaData.mime.startsWith("video/")) {
+          console.log("✅ Detected video by MIME:", mediaData.mime);
+          return "video";
+        }
+        if (mediaData.mime.startsWith("audio/")) {
+          console.log("✅ Detected audio by MIME:", mediaData.mime);
+          return "audio";
+        }
       }
 
       // Определяем по имени файла
-      if (mediaData.name) {
-        const ext = mediaData.name.split(".").pop()?.toLowerCase();
-        const imageExts = ["jpg", "jpeg", "png", "gif", "webp", "bmp"];
-        const videoExts = ["mp4", "avi", "mov", "mkv", "webm"];
-        const audioExts = ["mp3", "wav", "ogg", "aac", "m4a"];
+      if (mediaData.name || mediaData.url) {
+        const fileName = mediaData.name || mediaData.url;
+        const ext = fileName.split(".").pop()?.toLowerCase();
+        const imageExts = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"];
+        const videoExts = ["mp4", "avi", "mov", "mkv", "webm", "3gp", "ogv"];
+        const audioExts = ["mp3", "wav", "ogg", "aac", "m4a", "flac"];
 
-        if (imageExts.includes(ext)) return "image";
-        if (videoExts.includes(ext)) return "video";
-        if (audioExts.includes(ext)) return "audio";
+        if (imageExts.includes(ext)) {
+          console.log("✅ Detected image by extension:", ext);
+          return "image";
+        }
+        if (videoExts.includes(ext)) {
+          console.log("✅ Detected video by extension:", ext);
+          return "video";
+        }
+        if (audioExts.includes(ext)) {
+          console.log("✅ Detected audio by extension:", ext);
+          return "audio";
+        }
       }
 
+      console.log("⚠️ Defaulting to document type");
       return "document";
     };
 
@@ -833,15 +872,26 @@ export default function ChatPage() {
 
     // Определяем тип файла
     const getFileType = (
-      mimeType: string
+      mimeType: string,
+      fileName: string
     ): "image" | "video" | "document" | "audio" => {
+      console.log("🔍 Determining file type for:", { mimeType, fileName });
+      
       if (mimeType.startsWith("image/")) return "image";
       if (mimeType.startsWith("video/")) return "video";
       if (mimeType.startsWith("audio/")) return "audio";
+      
+      // Дополнительная проверка по расширению для случаев когда MIME неточный
+      const ext = fileName.split('.').pop()?.toLowerCase();
+      if (['mp4', 'avi', 'mov', 'mkv', 'webm'].includes(ext || '')) return "video";
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return "image";
+      if (['mp3', 'wav', 'ogg', 'aac'].includes(ext || '')) return "audio";
+      
       return "document";
     };
 
-    const fileType = getFileType(file.type);
+    const fileType = getFileType(file.type, file.name);
+    console.log("📁 File type determined:", fileType, "for file:", file.name);
 
     // Оптимистичное сообщение
     const optimistic: Message = {
@@ -1124,19 +1174,40 @@ export default function ChatPage() {
     }
   }, [chatId, loadMessages]);
 
+  // HTTP Polling для обновления данных когда WebSocket недоступен
   useEffect(() => {
+    // Определяем нужен ли polling
+    const shouldPoll = !FEATURES.WEBSOCKET_ENABLED || 
+                      connectionState === 'error' || 
+                      connectionState === 'disconnected';
+
+    if (!shouldPoll) {
+      console.log("📡 WebSocket активен - polling отключен");
+      return;
+    }
+
+    console.log("🔄 HTTP polling активен (WebSocket недоступен)");
+    
+    // Более частое обновление в HTTP режиме
     const pollInterval = setInterval(() => {
       if (document.visibilityState === "visible") {
         setIsPolling(true);
+        
+        // Обновляем чаты
         loadChats(true).finally(() => setIsPolling(false));
+        
+        // Обновляем сообщения текущего чата
         if (chatId && !isTempChat) {
           loadMessages(chatId, true);
         }
       }
-    }, 300000);
+    }, FEATURES.HTTP_POLLING_INTERVAL);
 
-    return () => clearInterval(pollInterval);
-  }, [chatId, isTempChat, loadChats, loadMessages]);
+    return () => {
+      console.log("🔄 HTTP polling остановлен");
+      clearInterval(pollInterval);
+    };
+  }, [chatId, isTempChat, connectionState, loadChats, loadMessages]);
 
   useEffect(() => {
     if (isNearBottom()) scrollToBottom();
@@ -1194,13 +1265,21 @@ export default function ChatPage() {
     Test WS
   </Button>;
 
-  // В компоненте ChatPage добавьте
+  // Мониторинг состояния WebSocket
   useEffect(() => {
     console.log("=== WEBSOCKET STATUS ===");
-    console.log("WebSocket connected:", isConnected);
-    console.log("Current chatId:", chatId);
+    console.log("Connected:", isConnected);
+    console.log("State:", connectionState);
+    console.log("Chat ID:", chatId);
     console.log("Is temp chat:", isTempChat);
-  }, [isConnected, chatId, isTempChat]);
+    
+    // Дополнительная информация при изменении состояния
+    if (connectionState === 'connected' && !isTempChat && chatId) {
+      console.log(`✅ Ready to send messages for chat: ${chatId}`);
+    } else if (connectionState === 'error') {
+      console.log("❌ WebSocket connection failed - messages will be sent via HTTP");
+    }
+  }, [isConnected, connectionState, chatId, isTempChat]);
   const isLoadingUI = loadingChats || loadingMessages;
 
   // Улучшенная функция скролла
@@ -1246,12 +1325,51 @@ export default function ChatPage() {
 
   return (
     <TooltipProvider>
-      {/* Индикатор WebSocket подключения (оставляем как есть) */}
+      {/* Улучшенный индикатор WebSocket подключения */}
       <div
         className={`fixed top-0 left-0 right-0 h-1 z-50 transition-all ${
-          isConnected ? "bg-green-500" : "bg-red-500 animate-pulse"
+          connectionState === 'connected' ? "bg-green-500" : 
+          connectionState === 'connecting' ? "bg-yellow-500 animate-pulse" :
+          connectionState === 'error' ? "bg-red-600 animate-pulse" :
+          "bg-red-500 animate-pulse"
         }`}
+        title={
+          connectionState === 'connected' ? "WebSocket подключен" :
+          connectionState === 'connecting' ? "Подключение..." :
+          connectionState === 'error' ? "Ошибка подключения" :
+          "WebSocket отключен"
+        }
       />
+      
+      {/* Информация о режиме и переподключение */}
+      {FEATURES.SHOW_CONNECTION_STATUS && (
+        <>
+          
+          {FEATURES.WEBSOCKET_ENABLED && (connectionState === 'error' || connectionState === 'disconnected') && (
+            <div className="fixed top-2 right-2 z-50 flex gap-2">
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-1 rounded-md text-xs">
+                📡 HTTP-режим (WebSocket недоступен)
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={reconnect}
+                className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+              >
+                🔄 Переподключить
+              </Button>
+            </div>
+          )}
+          
+          {FEATURES.WEBSOCKET_ENABLED && connectionState === 'connecting' && (
+            <div className="fixed top-2 right-2 z-50">
+              <div className="bg-blue-50 border border-blue-200 text-blue-800 px-3 py-1 rounded-md text-xs">
+                🔄 Подключение к WebSocket...
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {isPolling && (
         <div className="fixed top-1 left-0 right-0 h-0.5 bg-green-500/20 z-50" />
@@ -1311,31 +1429,6 @@ export default function ChatPage() {
             />
           )}
         </aside>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            if (messages.length > 0) {
-              const lastMessage = messages[messages.length - 1];
-              const testReply: ReplyMessage = {
-                id: lastMessage.id,
-                author: lastMessage.author,
-                text: lastMessage.text,
-                media: lastMessage.media
-                  ? {
-                      type: lastMessage.media.type,
-                      name: lastMessage.media.name,
-                    }
-                  : undefined,
-              };
-              console.log("Setting debug reply:", testReply);
-              setReplyingTo(testReply);
-            }
-          }}
-          className="absolute top-2 left-2 z-50"
-        >
-          Test Reply to Last
-        </Button>
 
         {/* Chat area */}
         <main className="flex-1 flex flex-col">

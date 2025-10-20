@@ -26,29 +26,32 @@ const formatTime = (timestamp: string) => {
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0) {
-    return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString("ru-RU", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   } else if (diffDays === 1) {
-    return 'вчера';
+    return "вчера";
   } else if (diffDays < 7) {
-    return date.toLocaleDateString('ru-RU', { weekday: 'short' });
+    return date.toLocaleDateString("ru-RU", { weekday: "short" });
   } else {
-    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
   }
 };
 
 const getLastMessageText = (lastMessage: any) => {
   if (!lastMessage) return "Нет сообщений";
-  
+
   switch (lastMessage.type) {
-    case 'text':
+    case "text":
       return lastMessage.text || "Текстовое сообщение";
-    case 'image':
+    case "image":
       return "🖼️ Изображение";
-    case 'document':
-      return `📎 ${lastMessage.media?.name || 'Документ'}`;
-    case 'video':
+    case "document":
+      return `📎 ${lastMessage.media?.name || "Документ"}`;
+    case "video":
       return "🎥 Видео";
-    case 'audio':
+    case "audio":
       return "🎵 Аудио";
     default:
       return "Сообщение";
@@ -95,9 +98,9 @@ export function Sidebar({
     }
   };
 
-  const filteredChats = chats.filter(chat => 
-    chat.name?.toLowerCase().includes(query.toLowerCase()) ||
-    chat.lastMessage
+  const filteredChats = chats.filter(
+    (chat) =>
+      chat.name?.toLowerCase().includes(query.toLowerCase()) || chat.lastMessage
   );
 
   return (
@@ -117,9 +120,9 @@ export function Sidebar({
         <div className="flex items-center gap-2">
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="text-gray-500 hover:text-blue-500"
               >
                 <Plus className="h-5 w-5" />
@@ -174,15 +177,17 @@ export function Sidebar({
           ) : (
             filteredChats.map((chat) => {
               const chatId = chat.id || chat.chat_id;
-              
+              const chat_name = chat.lastMessage.sender.name || chatId.replace('@c.us', '');
               if (!chatId) return null;
 
               return (
-                <Link 
-                  key={chatId} 
+                <Link
+                  key={chatId}
                   href={`/${encodeURIComponent(chatId)}`}
                   className={`block border-b border-gray-100 dark:border-gray-800 ${
-                    chatId === selectedId ? "bg-blue-50 dark:bg-blue-900/20" : "hover:bg-gray-50 dark:hover:bg-gray-800"
+                    chatId === selectedId
+                      ? "bg-blue-50 dark:bg-blue-900/20"
+                      : "hover:bg-gray-50 dark:hover:bg-gray-800"
                   }`}
                 >
                   <div
@@ -194,27 +199,34 @@ export function Sidebar({
                         <AvatarImage src={chat.avatarUrl} alt={chat.name} />
                       ) : (
                         <AvatarFallback className="bg-blue-500 text-white">
-                          {chat.avatarFallback || 
-                           (typeof chat.name === 'string' ? chat.name.charAt(0) : '?')}
+                          {chat.avatarFallback ||
+                            (typeof chat.name === "string"
+                              ? chat.name.charAt(0)
+                              : "?")}
                         </AvatarFallback>
                       )}
                     </Avatar>
-                    
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <div className="font-medium text-gray-900 dark:text-white truncate">
-                          {chat.name || chatId.replace('@c.us', '')}
+                          {chat_name}
                         </div>
                         <div className="text-xs text-gray-500 whitespace-nowrap ml-2">
-                          {chat.lastMessage?.timestamp ? 
-                           formatTime(chat.lastMessage.timestamp) : ''}
+                          {chat.lastMessage?.timestamp
+                            ? formatTime(chat.lastMessage.timestamp)
+                            : ""}
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center justify-between">
-                        <div className={`text-sm truncate flex-1 pr-2 ${
-                          chat.unread ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-500'
-                        }`}>
+                        <div
+                          className={`text-sm truncate flex-1 pr-2 ${
+                            chat.unread
+                              ? "text-gray-900 dark:text-white font-medium"
+                              : "text-gray-500"
+                          }`}
+                        >
                           {getLastMessageText(chat.lastMessage)}
                         </div>
 

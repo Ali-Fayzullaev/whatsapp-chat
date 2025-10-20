@@ -61,7 +61,7 @@ export function Composer({
   }, [replyingTo]);
 
   return (
-    <div className="p-4 border-t bg-white dark:bg-gray-900">
+    <div className="p-4 border-t bg-white dark:bg-gray-900 mt-1">
       {/* 🔹 Telegram Style: Баннер ответа */}
       {replyingTo && (
         <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg border-l-4 border-blue-500">
