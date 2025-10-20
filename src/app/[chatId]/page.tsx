@@ -15,6 +15,7 @@ import { Menu, MessageCircleMore, MoreVertical, RefreshCw } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { FEATURES } from "@/config/features";
 import { apiConfig } from "@/lib/api-config";
+import { tokenStorage } from "@/lib/token-storage";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -119,6 +120,18 @@ export default function ChatPage() {
     console.log("Remote delete:", remote);
 
     try {
+      // Получаем токен через tokenStorage
+      console.log("🔍 Getting auth token for message deletion...");
+      const authToken = tokenStorage.getToken();
+      
+      if (!authToken) {
+        console.error("❌ No auth token found for message deletion");
+        alert("Ошибка авторизации: токен не найден");
+        return;
+      }
+
+      console.log("🔑 Token found for message deletion:", authToken.substring(0, 10) + "...");
+
       // Оптимистично удаляем из UI
       setMessages(prev => prev.filter(m => m.id !== messageId));
 
@@ -136,10 +149,12 @@ export default function ChatPage() {
       const response = await fetch(finalUrl, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${apiConfig.getAccessToken()}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
         },
       });
+
+      console.log("📡 Message delete API Response status:", response.status);
 
       const responseData = await response.json().catch(() => ({}));
 
@@ -180,6 +195,76 @@ export default function ChatPage() {
       if (chatId) {
         loadMessages(chatId, true);
       }
+    }
+  };
+
+  // 🗑️ Функция для удаления чата
+  const handleDeleteChat = async (chatIdToDelete: string) => {
+    console.log("=== DELETE CHAT ===");
+    console.log("Chat ID to delete:", chatIdToDelete);
+
+    try {
+      console.log("🔍 Getting auth token...");
+      const authToken = tokenStorage.getToken();
+      
+      if (!authToken) {
+        console.error("❌ No auth token found");
+        // Проверим все ключи в localStorage для отладки
+        console.log("🔍 Checking all localStorage keys:");
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('token') || key.includes('auth'))) {
+            console.log(`  - ${key}: ${localStorage.getItem(key)?.substring(0, 20)}...`);
+          }
+        }
+        throw new Error("Нет токена авторизации");
+      }
+
+      console.log("🔑 Token found:", authToken.substring(0, 10) + "...");
+
+      const response = await fetch(`/api/whatsapp/chats/${encodeURIComponent(chatIdToDelete)}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      console.log("📡 API Response status:", response.status);
+
+      if (response.ok) {
+        console.log("✅ Chat deleted successfully");
+        
+        // Удаляем чат из локального состояния
+        setChats(prevChats => prevChats.filter(chat => chat.id !== chatIdToDelete));
+        
+        // Если удалили текущий чат, перенаправляем на главную
+        if (chatId === chatIdToDelete) {
+          router.push("/");
+        }
+        
+        // Обновляем список чатов
+        setTimeout(() => {
+          loadChats(true);
+        }, 500);
+        
+      } else {
+        const responseData = await response.json();
+        console.error("❌ Failed to delete chat:", response.status, responseData);
+        
+        alert(
+          responseData.error || 
+          `Не удалось удалить чат (${response.status})`
+        );
+      }
+
+    } catch (error) {
+      console.error("Delete chat error:", error);
+      
+      alert(
+        "Ошибка при удалении чата: " + 
+        (error instanceof Error ? error.message : "Неизвестная ошибка")
+      );
     }
   };
 
@@ -1483,6 +1568,7 @@ export default function ChatPage() {
           router.push(`/${id}`);
         }}
         onCreateChat={handleCreateChat}
+        onDeleteChat={handleDeleteChat}
       />
 
       <div className="flex h-[calc(100vh-2rem)] md:h-screen w-full bg-background text-foreground">
@@ -1517,6 +1603,7 @@ export default function ChatPage() {
                 router.push(`/${id}`);
               }}
               onCreateChat={handleCreateChat}
+              onDeleteChat={handleDeleteChat}
             />
           )}
         </aside>

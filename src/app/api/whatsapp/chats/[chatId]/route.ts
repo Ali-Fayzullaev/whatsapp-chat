@@ -1,63 +1,38 @@
-// src/app/api/whatsapp/chats/[chatId]/messages/[messageRef]/route.ts
+// src/app/api/whatsapp/chats/[chatId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { apiConfig } from '@/lib/api-config';
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ chatId: string; messageRef: string }> }
+  { params }: { params: Promise<{ chatId: string }> }
 ) {
   try {
     const resolvedParams = await params;
-    const { chatId, messageRef } = resolvedParams;
+    const { chatId } = resolvedParams;
     
-    console.log('=== DELETE MESSAGE API ===');
+    console.log('=== DELETE CHAT API ===');
     console.log('Chat ID:', chatId);
-    console.log('Message Ref:', messageRef);
 
-    if (!chatId || !messageRef) {
+    if (!chatId) {
       return NextResponse.json(
-        { error: 'Missing chatId or messageRef' },
+        { error: 'Missing chatId' },
         { status: 400 }
       );
     }
 
-    // Получаем параметры запроса
-    const { searchParams } = new URL(req.url);
-    const remote = searchParams.get('remote') === 'true';
-    const onlySender = searchParams.get('only_sender') === 'true';
-
-    console.log('Parameters:', { remote, onlySender });
-
-    // Получаем токен авторизации
+    // 🔹 Получаем токен авторизации из заголовка
     const authHeader = req.headers.get('authorization');
     let token = '';
     
-    console.log("Auth header received:", authHeader ? `Bearer ${authHeader.substring(7, 17)}...` : 'missing');
+    console.log("Auth header received:", authHeader ? 'present' : 'missing');
     
     if (authHeader) {
       token = authHeader.replace('Bearer ', '');
     } else {
-      // Fallback: пробуем получить из cookies
-      const cookieHeader = req.headers.get('cookie');
-      if (cookieHeader) {
-        const cookies = cookieHeader.split(';');
-        for (const cookie of cookies) {
-          const [name, value] = cookie.trim().split('=');
-          if (name === 'auth_token') {
-            token = decodeURIComponent(value);
-            console.log("Token found in cookies");
-            break;
-          }
-        }
-      }
-      
-      if (!token) {
-        token = apiConfig.getAccessToken() || '';
-        console.log("Using fallback token from apiConfig");
-      }
+      token = apiConfig.getAccessToken() || '';
     }
 
-    console.log("Token to use:", token ? `${token.substring(0, 10)}...` : 'missing');
+    console.log("Token to use:", token ? 'present' : 'missing');
 
     if (!token) {
       console.error('No access token available');
@@ -79,19 +54,13 @@ export async function DELETE(
       );
     }
 
-    // Формируем URL с параметрами
-    const deleteUrl = new URL(`${baseUrl}/api/chats/${chatId}/messages/${messageRef}`);
-    if (remote) {
-      deleteUrl.searchParams.set('remote', 'true');
-    }
-    if (onlySender) {
-      deleteUrl.searchParams.set('only_sender', 'true');
-    }
+    // Формируем URL для удаления чата
+    const deleteUrl = `${baseUrl}/api/chats/${chatId}`;
 
-    console.log('Making request to Green API:', deleteUrl.toString());
+    console.log('Making request to Green API:', deleteUrl);
 
     // Выполняем запрос к Green API
-    const response = await fetch(deleteUrl.toString(), {
+    const response = await fetch(deleteUrl, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -123,15 +92,12 @@ export async function DELETE(
         result = { success: true, deleted: true };
       }
 
-      console.log('Delete message successful:', result);
+      console.log('Delete chat successful:', result);
       
       return NextResponse.json({
         success: true,
         deleted: true,
-        messageRef,
         chatId,
-        remote,
-        onlySender,
         result
       });
     } else {
@@ -147,9 +113,8 @@ export async function DELETE(
 
       return NextResponse.json(
         {
-          error: errorData.error || errorData.detail || `Failed to delete message`,
+          error: errorData.error || errorData.detail || `Failed to delete chat`,
           status: response.status,
-          messageRef,
           chatId
         },
         { status: response.status }
@@ -157,7 +122,7 @@ export async function DELETE(
     }
 
   } catch (error) {
-    console.error('Delete message error:', error);
+    console.error('Delete chat error:', error);
     
     return NextResponse.json(
       {

@@ -18,6 +18,7 @@ interface MobileSidebarProps {
   selectedId?: string;
   setSelectedId: (id: string) => void;
   onCreateChat: (phone: string) => Promise<void>;
+  onDeleteChat?: (chatId: string) => Promise<void>;
 }
 
 export function MobileSidebar({
@@ -28,7 +29,8 @@ export function MobileSidebar({
   chats,
   selectedId,
   setSelectedId,
-  onCreateChat
+  onCreateChat,
+  onDeleteChat
 }: MobileSidebarProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -57,6 +59,7 @@ export function MobileSidebar({
             }}
             compact={true}
             onCreateChat={onCreateChat}
+            onDeleteChat={onDeleteChat}
           />
         </div>
       </SheetContent>
