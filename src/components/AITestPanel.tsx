@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAI } from '@/hooks/useAI';
 import { useWhatsAppAPI } from '@/hooks/useWhatsAppAPI';
+import { AIMonitor } from '@/components/AIMonitor';
 
 interface AITestPanelProps {
   chatId: string;
@@ -124,16 +125,24 @@ export function AITestPanel({ chatId, onClose }: AITestPanelProps) {
   };
 
   return (
-    <Card className="fixed top-4 right-4 w-96 z-50 shadow-lg bg-white">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          🧪 AI Test Panel
-          <Button variant="ghost" size="sm" onClick={onClose}>✕</Button>
-        </CardTitle>
-        <CardDescription>
-          Протестируйте AI ответы перед использованием
-        </CardDescription>
-      </CardHeader>
+    <div className="fixed inset-4 z-50 bg-white dark:bg-gray-900 shadow-2xl rounded-lg overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between p-4 border-b bg-gray-50 dark:bg-gray-800">
+        <h2 className="text-lg font-semibold">🧪 AI Diagnostic Center</h2>
+        <Button variant="ghost" size="sm" onClick={onClose}>✕</Button>
+      </div>
+      
+      <div className="flex-1 overflow-auto p-4 space-y-4">
+        {/* AI Monitor */}
+        <AIMonitor chatId={chatId} />
+        
+        {/* Original Test Panel */}
+        <Card>
+          <CardHeader>
+            <CardTitle>🤖 AI Test Panel</CardTitle>
+            <CardDescription>
+              Протестируйте AI ответы перед использованием
+            </CardDescription>
+          </CardHeader>
       <CardContent className="space-y-4">
         {/* AI Status */}
         <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
@@ -225,11 +234,13 @@ export function AITestPanel({ chatId, onClose }: AITestPanelProps) {
           </div>
         )}
 
-        {/* Debug Info */}
-        <div className="text-xs text-gray-500">
-          Chat ID: {chatId}
-        </div>
-      </CardContent>
-    </Card>
+          {/* Debug Info */}
+          <div className="text-xs text-gray-500">
+            Chat ID: {chatId}
+          </div>
+        </CardContent>
+      </Card>
+      </div>
+    </div>
   );
 }
