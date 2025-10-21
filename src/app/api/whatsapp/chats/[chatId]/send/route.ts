@@ -5,12 +5,13 @@ import { apiConfig } from "@/lib/api-config";
 export async function POST(req: NextRequest, { params }: { params: Promise<{ chatId: string }> }) {
   const resolvedParams = await params;
   const { chatId } = resolvedParams;
-  const { text, reply_to } = await req.json(); // 🔹 ИЗМЕНИЛ НА reply_to
+  const { text, reply_to, ai_generated } = await req.json(); // 🔹 ДОБАВИЛИ ai_generated
   
   console.log("=== SEND MESSAGE API ===");
   console.log("Chat ID:", chatId);
   console.log("Message text:", text);
   console.log("Reply to:", reply_to); // 🔹 ДОБАВИЛ ЛОГИРОВАНИЕ
+  console.log("AI generated:", ai_generated); // 🔹 ЛОГИРУЕМ AI флаг
   
   if (!text) {
     return Response.json({ error: "Текст обязателен" }, { status: 400 });

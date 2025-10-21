@@ -12,11 +12,13 @@ import { Composer } from "@/components/chat/Composer";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { useWebSocket } from "@/providers/WebSocketProvider";
 import { MobileSidebar } from "@/components/chat/MobileSidebar";
-import { Menu, MessageCircleMore, MoreVertical, RefreshCw } from "lucide-react";
+import { Menu, MessageCircleMore, MoreVertical, RefreshCw, Bot } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { FEATURES } from "@/config/features";
 import { apiConfig } from "@/lib/api-config";
 import { tokenStorage } from "@/lib/token-storage";
+import { useAI } from "@/hooks/useAI";
+import { AITestPanel } from "@/components/AITestPanel";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -63,6 +65,175 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   // 🔹 WebSocket хуки ТОЛЬКО ОДИН РАЗ наверху
   const { isConnected, connectionState, sendMessage, onMessage, offMessage, reconnect } = useWebSocket();
+  
+  // 🤖 AI хуки для автоответов
+  const { aiEnabled, isProcessing: aiProcessing, processAutoReply, toggleAI } = useAI();
+  const [showAITestPanel, setShowAITestPanel] = useState(false);
+
+  // 🤖 Обработка AI автоответов для входящих сообщений
+  const handleIncomingMessage = useCallback(async (incomingMessage: Message) => {
+    console.log('🤖 === AI MESSAGE PROCESSING START ===');
+    console.log('🤖 Incoming message:', {
+      id: incomingMessage.id,
+      author: incomingMessage.author,
+      text: incomingMessage.text,
+      createdAt: incomingMessage.createdAt
+    });
+    console.log('🤖 AI status:', { aiEnabled, chatId });
+    
+    // Проверяем, нужно ли AI отвечать
+    if (!aiEnabled) {
+      console.log('🤖 ❌ AI is disabled, skipping');
+      return;
+    }
+    
+    if (incomingMessage.author !== 'them') {
+      console.log('🤖 ❌ Message is from me, skipping');
+      return;
+    }
+    
+    if (!chatId) {
+      console.log('🤖 ❌ No chat ID, skipping');
+      return;
+    }
+
+    console.log('🤖 ✅ All checks passed, processing auto-reply...');
+
+    // Получаем все сообщения для контекста
+    const allMessages = [...messages, incomingMessage];
+    
+    // Обрабатываем автоответ (передаем функцию напрямую, а не через ref)
+    console.log('🤖 Calling processAutoReply with:', {
+      messageText: incomingMessage.text,
+      chatId,
+      messagesCount: allMessages.length
+    });
+    
+    const replied = await processAutoReply(
+      incomingMessage.text,
+      chatId,
+      allMessages,
+      async (aiText: string) => {
+        console.log('🤖 === SENDING AI REPLY ===');
+        console.log('🤖 AI generated text:', aiText);
+        console.log('🤖 Target chat ID:', chatId);
+        
+        // Отправляем через HTTP API для избежания циклических зависимостей
+        try {
+          await sendMessageViaAPICallback(aiText, chatId);
+          console.log('🤖 ✅ AI message sent successfully');
+        } catch (error) {
+          console.error('🤖 ❌ Failed to send AI message:', error);
+        }
+      }
+    );
+
+    console.log('🤖 === AI MESSAGE PROCESSING END ===');
+    console.log('🤖 Reply result:', replied);
+    
+    if (replied) {
+      console.log('🤖 ✅ AI auto-reply sent successfully');
+    } else {
+      console.log('🤖 ❌ AI decided not to reply or failed');
+    }
+  }, [aiEnabled, chatId, messages, processAutoReply]);
+
+  // 🤖 Функция для отправки сообщения через API (для AI)
+  const sendMessageViaAPI = async (text: string, targetChatId: string) => {
+    try {
+      // 🔹 Получаем токен авторизации
+      const authToken = tokenStorage.getToken();
+      
+      if (!authToken) {
+        console.error('🤖 No auth token found for AI message sending');
+        throw new Error('Authorization token required');
+      }
+
+      console.log('🤖 Sending AI message with auth token:', authToken.substring(0, 10) + '...');
+
+      const response = await fetch(`/api/whatsapp/chats/${encodeURIComponent(targetChatId)}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          text,
+          ai_generated: true, // Помечаем как AI сообщение
+        }),
+      });
+
+      if (!response.ok) {
+        let errorText;
+        try {
+          errorText = await response.text();
+        } catch {
+          errorText = 'Could not read error response';
+        }
+        
+        console.error('🤖 ❌ Failed to send AI message:');
+        console.error('  Status:', response.status);
+        console.error('  Status Text:', response.statusText);
+        console.error('  Error:', errorText);
+        console.error('  Chat ID:', targetChatId);
+        console.error('  Message:', text);
+        
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('🤖 ✅ AI message sent successfully via API:', result);
+      
+      // После успешной отправки обновляем сообщения
+      setTimeout(() => {
+        if (targetChatId === chatId) {
+          loadMessages(targetChatId, true);
+        }
+      }, 1000);
+      
+    } catch (error) {
+      console.error('🤖 ❌ Error sending AI message:', error);
+    }
+  };
+
+  // 🤖 Эффект для отслеживания новых входящих сообщений
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    
+    console.log('🤖 Checking messages for AI processing:', {
+      totalMessages: messages.length,
+      lastMessage: lastMessage ? {
+        id: lastMessage.id,
+        author: lastMessage.author,
+        text: lastMessage.text,
+        createdAt: lastMessage.createdAt,
+        timeDiff: lastMessage.createdAt ? Date.now() - lastMessage.createdAt : 'no timestamp'
+      } : 'no messages',
+      aiEnabled,
+      aiProcessing,
+      chatId
+    });
+    
+    // Если последнее сообщение от собеседника и добавилось недавно
+    if (lastMessage && 
+        lastMessage.author === 'them' && 
+        Date.now() - lastMessage.createdAt < 10000 && // Увеличил до 10 секунд для тестирования
+        !aiProcessing &&
+        aiEnabled) {
+      
+      console.log('🤖 ✅ New incoming message detected, processing AI response:', lastMessage.text);
+      handleIncomingMessage(lastMessage);
+    } else {
+      console.log('🤖 ❌ Message not processed. Reasons:', {
+        noMessage: !lastMessage,
+        notFromThem: lastMessage?.author !== 'them',
+        tooOld: lastMessage ? Date.now() - lastMessage.createdAt >= 10000 : false,
+        aiProcessing,
+        aiDisabled: !aiEnabled
+      });
+    }
+  }, [messages, handleIncomingMessage, aiProcessing, aiEnabled]);
+  
   const [messageReplies, setMessageReplies] = useState<
     Map<string, ReplyMessage>
   >(new Map());
@@ -591,6 +762,32 @@ export default function ChatPage() {
   },
   [messageReplies] // 🔹 ДОБАВЬТЕ messageReplies в зависимости
 );
+
+  // 🤖 Добавляем sendMessageViaAPI в useCallback с зависимостями
+  const sendMessageViaAPICallback = useCallback(
+    (text: string, targetChatId: string) => sendMessageViaAPI(text, targetChatId),
+    [chatId, loadMessages]
+  );
+
+  // 🤖 Быстрое тестирование AI - отправляем сразу в WhatsApp
+  const quickTestAI = useCallback(async () => {
+    if (!aiEnabled || !chatId) {
+      alert('AI выключен или нет активного чата');
+      return;
+    }
+
+    const testMessage = 'Привет! Это тест AI системы 🤖';
+    console.log('🧪 Quick AI test started:', testMessage);
+    
+    try {
+      await sendMessageViaAPICallback(testMessage, chatId);
+      console.log('🧪 ✅ Quick AI test message sent');
+    } catch (error) {
+      console.error('🧪 ❌ Quick AI test failed:', error);
+      alert('Ошибка отправки тестового сообщения: ' + error);
+    }
+  }, [aiEnabled, chatId, sendMessageViaAPICallback]);
+
   const saveMessageReply = (messageId: string, replyTo: ReplyMessage) => {
     setMessageReplies((prev) => new Map(prev).set(messageId, replyTo));
   };
@@ -1665,6 +1862,56 @@ export default function ChatPage() {
             />
           )}
 
+          {/* 🤖 AI Status Bar */}
+          {chatId && (
+            <div className="px-3 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-b border-blue-200 dark:border-blue-800/30 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${aiEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  <Bot className="h-6 w-6"/> <span>AI Помощник {aiEnabled ? 'включен' : 'выключен'}</span>
+                </span>
+                {aiProcessing && (
+                  <span className="text-xs text-blue-600 dark:text-blue-400 animate-pulse">
+                    обрабатывает...
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleAI}
+                  className={`text-xs h-6 px-2 ${
+                    aiEnabled 
+                      ? 'text-green-700 hover:text-green-800 dark:text-green-400' 
+                      : 'text-gray-600 hover:text-gray-700 dark:text-gray-400'
+                  }`}
+                >
+                  {aiEnabled ? '🟢 Вкл' : '🔴 Выкл'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAITestPanel(true)}
+                  className="text-xs h-6 px-2 text-blue-600 hover:text-blue-700"
+                  title="Открыть панель тестирования AI"
+                >
+                  🧪
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={quickTestAI}
+                  disabled={!aiEnabled}
+                  className="text-xs h-6 px-2 text-green-600 hover:text-green-700 disabled:opacity-50"
+                  title="Быстрый тест - отправить сообщение от AI"
+                >
+                  📤
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Баннер про скрытый чат (оставляем без изменений) */}
           {(isTempChat ||
             (selectedChat &&
@@ -1770,6 +2017,37 @@ export default function ChatPage() {
             </div>
           )}
 
+          {/* 🤖 AI Status Bar */}
+          {chatId && (
+            <div className="border-t bg-gray-50 dark:bg-gray-800 px-4 py-2 flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${aiEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                <span className="text-gray-600 dark:text-gray-300">
+                  AI Assistant: {aiEnabled ? 'Включен' : 'Выключен'}
+                  {aiProcessing && ' • Обрабатывает...'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowAITestPanel(true)}
+                  className="h-7 px-2"
+                >
+                  🧪 Test AI
+                </Button>
+                <Button
+                  size="sm"
+                  variant={aiEnabled ? "destructive" : "default"}
+                  onClick={toggleAI}
+                  className="h-7 px-3"
+                >
+                  {aiEnabled ? 'Выкл' : 'Вкл'}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Composer */}
           {chatId && (
             <div className="sticky bottom-0 z-10 bg-transparent">
@@ -1788,6 +2066,14 @@ export default function ChatPage() {
           )}
         </main>
       </div>
+
+      {/* 🧪 AI Test Panel */}
+      {showAITestPanel && chatId && (
+        <AITestPanel 
+          chatId={chatId} 
+          onClose={() => setShowAITestPanel(false)} 
+        />
+      )}
     </TooltipProvider>
   );
 }

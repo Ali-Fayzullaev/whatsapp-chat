@@ -73,15 +73,26 @@ export const useWhatsAppAPI = (chatId?: string) => {
   // Отправка сообщения
   const sendMessage = async (id: string, text: string) => {
     try {
-      await fetch(`/api/whatsapp/chats/${id}/sendText`, {
+      const response = await fetch(`/api/whatsapp/chats/${id}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       // После отправки — перезагрузи сообщения
       await loadMessages(id);
+      
+      return { success: true };
     } catch (err) {
       console.error('Send failed', err);
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : 'Unknown error' 
+      };
     }
   };
 

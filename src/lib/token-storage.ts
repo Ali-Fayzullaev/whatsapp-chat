@@ -166,12 +166,7 @@ class TokenStorage {
   }
 }
 
-// Создаем глобальный экземпляр
-export const tokenStorage = new TokenStorage({
-  useHttpOnlyCookies: false, // Пока false, можно включить позже
-  cookieName: 'whatsapp_auth_token',
-  localStorageKey: 'auth_token',
-});
+// Старый экспорт будет заменен новым в конце файла
 
 // Дополнительные утилиты
 export const TokenUtils = {
@@ -220,3 +215,144 @@ export const TokenUtils = {
     }
   },
 };
+
+/**
+ * 🔒 ДОПОЛНИТЕЛЬНЫЕ МЕРЫ БЕЗОПАСНОСТИ
+ */
+export const SecurityEnhancements = {
+  /**
+   * Очистка токена при закрытии вкладки (опционально)
+   */
+  setupTokenCleanup() {
+    if (typeof window !== 'undefined') {
+      // Очистка при выходе из приложения
+      window.addEventListener('beforeunload', () => {
+        // Можно добавить очистку при необходимости
+        // tokenStorage.removeToken();
+      });
+      
+      // Проверка валидности токена каждые 5 минут
+      setInterval(() => {
+        const token = tokenStorage.getToken();
+        if (token && TokenUtils.isTokenExpired(token)) {
+          console.log('🔒 Token expired, removing...');
+          tokenStorage.removeToken();
+          // Можно добавить редирект на страницу входа
+          window.location.href = '/auth/login';
+        }
+      }, 5 * 60 * 1000); // 5 минут
+    }
+  },
+
+  /**
+   * Проверка целостности токена
+   */
+  validateTokenIntegrity(token: string): boolean {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) return false;
+      
+      // Проверяем, что части токена корректны
+      JSON.parse(atob(parts[1]));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Шифрование токена в localStorage (простое обфускирование)
+   */
+  encodeToken(token: string): string {
+    // Простое base64 кодирование для обфускации
+    return btoa(unescape(encodeURIComponent(token)));
+  },
+
+  decodeToken(encodedToken: string): string {
+    try {
+      return decodeURIComponent(escape(atob(encodedToken)));
+    } catch {
+      return encodedToken; // Возвращаем как есть, если не удается декодировать
+    }
+  },
+};
+
+/**
+ * 🔒 УЛУЧШЕННОЕ ХРАНЕНИЕ ТОКЕНОВ С ДОПОЛНИТЕЛЬНОЙ БЕЗОПАСНОСТЬЮ
+ */
+class SecureTokenStorage extends TokenStorage {
+  private isEncryptionEnabled = false;
+
+  constructor(options: TokenStorageOptions & { enableEncryption?: boolean } = {}) {
+    super(options);
+    this.isEncryptionEnabled = options.enableEncryption || false;
+  }
+
+  /**
+   * Сохранить токен с шифрованием
+   */
+  setToken(token: string): void {
+    if (typeof window === 'undefined') return;
+
+    try {
+      // Валидация токена
+      if (!SecurityEnhancements.validateTokenIntegrity(token)) {
+        console.error('❌ Invalid token format');
+        return;
+      }
+
+      const tokenToStore = this.isEncryptionEnabled 
+        ? SecurityEnhancements.encodeToken(token) 
+        : token;
+
+      // Сохраняем как обычно
+      super.setToken(tokenToStore);
+      
+      // Инициализируем проверки безопасности
+      SecurityEnhancements.setupTokenCleanup();
+
+    } catch (error) {
+      console.error('❌ Failed to save secure token:', error);
+    }
+  }
+
+  /**
+   * Получить токен с расшифровкой
+   */
+  getToken(): string | null {
+    const storedToken = super.getToken();
+    
+    if (!storedToken) return null;
+
+    try {
+      const token = this.isEncryptionEnabled 
+        ? SecurityEnhancements.decodeToken(storedToken)
+        : storedToken;
+
+      // Проверяем валидность токена
+      if (TokenUtils.isTokenExpired(token)) {
+        console.log('🔒 Token expired, removing...');
+        this.removeToken();
+        return null;
+      }
+
+      return token;
+    } catch (error) {
+      console.error('❌ Failed to decode token:', error);
+      this.removeToken(); // Удаляем поврежденный токен
+      return null;
+    }
+  }
+}
+
+// 🔹 ЭКСПОРТ ЭКЗЕМПЛЯРОВ
+// Обычный экземпляр (текущий)
+export const tokenStorage = new TokenStorage();
+
+// Безопасный экземпляр (для будущего использования)
+export const secureTokenStorage = new SecureTokenStorage({ 
+  enableEncryption: false  // Можно включить при необходимости
+});
+
+// Экспорт классов для кастомных настроек
+export { TokenStorage, SecureTokenStorage };
