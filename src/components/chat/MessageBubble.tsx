@@ -423,7 +423,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                 <MoreHorizontal className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align={isMe ? "start" : "end"}>
+            <DropdownMenuContent className="bg-white dark:bg-muted" align={isMe ? "start" : "end"}>
               <DropdownMenuItem onClick={handleReply}>
                 <Reply className="h-4 w-4 mr-2" />
                 Ответить

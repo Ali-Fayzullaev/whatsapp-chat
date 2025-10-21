@@ -118,16 +118,17 @@ async function uploadFileToYourServer(
     let uploadEndpoint: string;
 
     if (file.type.startsWith("image/")) {
-      uploadEndpoint = "/api/files/upload-image";
+      uploadEndpoint = "/api/whatsapp/files/upload-image";
     } else if (file.type.startsWith("video/")) {
-      uploadEndpoint = "/api/files/upload-video";
+      uploadEndpoint = "/api/whatsapp/files/upload-video";
     } else if (file.type.startsWith("audio/")) {
-      uploadEndpoint = "/api/files/upload-audio";
+      uploadEndpoint = "/api/whatsapp/files/upload-audio";
     } else {
-      uploadEndpoint = "/api/files/upload-document";
+      uploadEndpoint = "/api/whatsapp/files/upload-document";
     }
 
-    const uploadUrl = `${apiConfig.getBaseUrl()}${uploadEndpoint}`;
+    // Используем базовый URL для нашего собственного API (не внешний сервер)
+    const uploadUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}${uploadEndpoint}`;
     console.log("Upload URL:", uploadUrl);
 
     const formData = new FormData();

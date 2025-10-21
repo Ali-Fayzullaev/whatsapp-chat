@@ -1205,11 +1205,20 @@ export default function ChatPage() {
 
       console.log("Sending FormData to API...");
 
-      // 🔹 ОТПРАВЛЯЕМ через API
+      // 🔹 Получаем токен авторизации
+      const authToken = tokenStorage.getToken();
+      if (!authToken) {
+        throw new Error("Токен авторизации не найден");
+      }
+
+      // 🔹 ОТПРАВЛЯЕМ через API с авторизацией
       const sendMediaRes = await fetch(
         `/api/whatsapp/chats/${encodeURIComponent(realChatId)}/send/media`,
         {
           method: "POST",
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+          },
           body: formData,
         }
       );

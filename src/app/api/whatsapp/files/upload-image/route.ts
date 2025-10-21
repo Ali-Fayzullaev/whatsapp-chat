@@ -4,6 +4,40 @@ import { apiConfig } from "@/lib/api-config";
 
 export async function POST(req: NextRequest) {
   try {
+    console.log("=== IMAGE UPLOAD API ===");
+    
+    // Получаем токен авторизации
+    const authHeader = req.headers.get('authorization');
+    let token = '';
+    
+    console.log("Auth header received:", authHeader ? `Bearer ${authHeader.substring(7, 17)}...` : 'missing');
+    
+    if (authHeader) {
+      token = authHeader.replace('Bearer ', '');
+    } else {
+      // Fallback: пробуем получить из cookies
+      const cookieHeader = req.headers.get('cookie');
+      if (cookieHeader) {
+        const cookies = cookieHeader.split(';');
+        for (const cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'auth_token') {
+            token = decodeURIComponent(value);
+            console.log("Token found in cookies");
+            break;
+          }
+        }
+      }
+    }
+
+    if (!token) {
+      console.error('No authorization token provided');
+      return Response.json(
+        { error: 'Authorization token required' },
+        { status: 401 }
+      );
+    }
+
     const formData = await req.formData();
     const file = formData.get('file') as File;
     
@@ -22,7 +56,10 @@ export async function POST(req: NextRequest) {
     const res = await fetch(url, {
       method: "POST",
       body: externalFormData,
-      headers: apiConfig.getHeadersForFormData(),
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        // НЕ добавляем Content-Type - браузер сам установит с boundary
+      },
     });
 
     console.log("Image upload status:", res.status);
