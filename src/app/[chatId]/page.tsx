@@ -73,13 +73,13 @@ export default function ChatPage() {
   // 🤖 Обработка AI автоответов для входящих сообщений
   const handleIncomingMessage = useCallback(async (incomingMessage: Message) => {
     console.log('🤖 === AI MESSAGE PROCESSING START ===');
-    console.log('🤖 Incoming message:', {
+    console.log('🤖 Incoming message:', JSON.stringify({
       id: incomingMessage.id,
       author: incomingMessage.author,
       text: incomingMessage.text,
       createdAt: incomingMessage.createdAt
-    });
-    console.log('🤖 AI status:', { aiEnabled, chatId });
+    }, null, 2));
+    console.log('🤖 AI status:', JSON.stringify({ aiEnabled, chatId }, null, 2));
     
     // Проверяем, нужно ли AI отвечать
     if (!aiEnabled) {
@@ -141,32 +141,58 @@ export default function ChatPage() {
   // 🤖 Функция для отправки сообщения через API (для AI)
   const sendMessageViaAPI = async (text: string, targetChatId: string) => {
     try {
+      console.log('🤖 === SENDING AI MESSAGE VIA API ===');
+      console.log('🤖 Target chat ID:', targetChatId);
+      console.log('🤖 Message text:', text);
+      
       // 🔹 Получаем токен авторизации
       const authToken = tokenStorage.getToken();
       
+      console.log('🤖 Auth token check:', {
+        hasToken: !!authToken,
+        tokenLength: authToken?.length || 0,
+        tokenStart: authToken ? authToken.substring(0, 20) + '...' : 'NO TOKEN'
+      });
+      
       if (!authToken) {
-        console.error('🤖 No auth token found for AI message sending');
+        console.error('🤖 ❌ No auth token found for AI message sending');
         throw new Error('Authorization token required');
       }
 
-      console.log('🤖 Sending AI message with auth token:', authToken.substring(0, 10) + '...');
+      const requestBody = {
+        text,
+        ai_generated: true, // Помечаем как AI сообщение
+      };
+      
+      const apiUrl = `/api/whatsapp/chats/${encodeURIComponent(targetChatId)}/send`;
+      
+      console.log('🤖 Making API request:', {
+        url: apiUrl,
+        method: 'POST',
+        body: requestBody,
+        hasAuthHeader: true
+      });
 
-      const response = await fetch(`/api/whatsapp/chats/${encodeURIComponent(targetChatId)}/send`, {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`,
         },
-        body: JSON.stringify({
-          text,
-          ai_generated: true, // Помечаем как AI сообщение
-        }),
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('🤖 API Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
       });
 
       if (!response.ok) {
         let errorText;
         try {
           errorText = await response.text();
+          console.error('🤖 ❌ API Error response body:', errorText);
         } catch {
           errorText = 'Could not read error response';
         }
@@ -193,6 +219,7 @@ export default function ChatPage() {
       
     } catch (error) {
       console.error('🤖 ❌ Error sending AI message:', error);
+      throw error; // Пробрасываем ошибку выше для обработки
     }
   };
 
@@ -200,7 +227,7 @@ export default function ChatPage() {
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
     
-    console.log('🤖 Checking messages for AI processing:', {
+    console.log('🤖 Checking messages for AI processing:', JSON.stringify({
       totalMessages: messages.length,
       lastMessage: lastMessage ? {
         id: lastMessage.id,
@@ -212,25 +239,25 @@ export default function ChatPage() {
       aiEnabled,
       aiProcessing,
       chatId
-    });
+    }, null, 2));
     
     // Если последнее сообщение от собеседника и добавилось недавно
     if (lastMessage && 
         lastMessage.author === 'them' && 
-        Date.now() - lastMessage.createdAt < 10000 && // Увеличил до 10 секунд для тестирования
+        Date.now() - lastMessage.createdAt < 300000 && // 🔧 Увеличил до 5 минут (300 секунд) для тестирования
         !aiProcessing &&
         aiEnabled) {
       
       console.log('🤖 ✅ New incoming message detected, processing AI response:', lastMessage.text);
       handleIncomingMessage(lastMessage);
     } else {
-      console.log('🤖 ❌ Message not processed. Reasons:', {
+      console.log('🤖 ❌ Message not processed. Reasons:', JSON.stringify({
         noMessage: !lastMessage,
         notFromThem: lastMessage?.author !== 'them',
-        tooOld: lastMessage ? Date.now() - lastMessage.createdAt >= 10000 : false,
+        tooOld: lastMessage ? Date.now() - lastMessage.createdAt >= 300000 : false, // 🔧 Обновил проверку времени
         aiProcessing,
         aiDisabled: !aiEnabled
-      });
+      }, null, 2));
     }
   }, [messages, handleIncomingMessage, aiProcessing, aiEnabled]);
   
@@ -330,7 +357,7 @@ export default function ChatPage() {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
+          'Content-Type': "application/json",
         },
       });
 

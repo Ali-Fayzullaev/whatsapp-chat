@@ -73,14 +73,41 @@ export const useWhatsAppAPI = (chatId?: string) => {
   // Отправка сообщения
   const sendMessage = async (id: string, text: string) => {
     try {
+      // 🔧 ИСПРАВЛЕНИЕ: Добавляем токен авторизации
+      const token = localStorage.getItem('whatsapp_access_token') || localStorage.getItem('whatsapp_token');
+      
+      console.log('🤖 useWhatsAppAPI sendMessage:', {
+        chatId: id,
+        hasToken: !!token,
+        tokenStart: token ? token.substring(0, 10) + '...' : 'NO TOKEN'
+      });
+
+      const headers: Record<string, string> = { 
+        'Content-Type': 'application/json' 
+      };
+
+      // Добавляем токен если есть
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`/api/whatsapp/chats/${id}/send`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ text }),
       });
       
+      console.log('🤖 useWhatsAppAPI response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+      
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        // Получаем более подробную информацию об ошибке
+        const errorText = await response.text().catch(() => 'Could not read error');
+        console.error('🤖 useWhatsAppAPI error details:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
       }
       
       // После отправки — перезагрузи сообщения

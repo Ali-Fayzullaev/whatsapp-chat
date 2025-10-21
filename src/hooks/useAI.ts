@@ -12,10 +12,11 @@ export interface AISettings {
 }
 
 export function useAI() {
-  const [aiEnabled, setAiEnabled] = useState(false);
+  // 🔧 AI включен по умолчанию для тестирования
+  const [aiEnabled, setAiEnabled] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [settings, setSettings] = useState<AISettings>({
-    enabled: false,
+    enabled: true, // 🔧 Включен по умолчанию
     autoReplyDelay: 2000,
     maxResponseLength: 300,
     temperature: 0.7,
@@ -38,9 +39,16 @@ export function useAI() {
         const data = await response.json();
         setAiEnabled(data.enabled);
         setSettings(prev => ({ ...prev, ...data.settings }));
+        console.log('🤖 AI settings loaded:', data);
+      } else {
+        console.log('🤖 AI API not available, using default settings (AI enabled)');
+        // Если API недоступен, оставляем AI включенным
+        setAiEnabled(true);
       }
     } catch (error) {
-      console.error('Failed to load AI settings:', error);
+      console.log('🤖 AI API error, using default settings (AI enabled):', error);
+      // При ошибке API оставляем AI включенным
+      setAiEnabled(true);
     }
   }, []);
 
