@@ -25,7 +25,6 @@ import {
 import { Chat } from "./types";
 import { HeaderMenu } from "./menus";
 import { useState } from "react";
-import Link from "next/link";
 
 const formatTime = (timestamp: string) => {
   const date = new Date(timestamp);
@@ -221,9 +220,8 @@ export function Sidebar({
                 >
                   <div className="flex items-center gap-3 p-3 transition-colors">
                     {/* Аватар и основная информация */}
-                    <Link 
-                      href={`/${encodeURIComponent(chatId)}`}
-                      className="flex items-center gap-3 flex-1 min-w-0"
+                    <button 
+                      className="flex items-center gap-3 flex-1 min-w-0 text-left"
                       onClick={() => setSelectedId(chatId)}
                     >
                       <Avatar className="h-12 w-12">
@@ -269,7 +267,7 @@ export function Sidebar({
                           ) : null}
                         </div>
                       </div>
-                    </Link>
+                    </button>
 
                     {/* Кнопка удаления чата */}
                     {onDeleteChat && (

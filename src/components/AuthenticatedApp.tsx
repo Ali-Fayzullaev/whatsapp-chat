@@ -3,7 +3,6 @@
 
 import { useAuth } from '@/providers/AuthProvider';
 import { LoginForm } from '@/components/LoginForm';
-import { UserHeader } from '@/components/UserHeader';
 import { Loader2 } from 'lucide-react';
 
 interface AuthenticatedAppProps {
@@ -35,7 +34,6 @@ export function AuthenticatedApp({ children }: AuthenticatedAppProps) {
   // Если авторизован, показываем приложение с заголовком пользователя
   return (
     <div className="min-h-screen">
-      <UserHeader />
       {children}
     </div>
   );

@@ -52,6 +52,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(true);
+  const [isSwitchingChat, setIsSwitchingChat] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
@@ -132,8 +133,15 @@ export default function ChatPage() {
 
       console.log("🔑 Token found for message deletion:", authToken.substring(0, 10) + "...");
 
-      // Оптимистично удаляем из UI
-      setMessages(prev => prev.filter(m => m.id !== messageId));
+      // Сохраняем оригинальное сообщение для возможного восстановления
+      const messageToDelete = messages.find(m => m.id === messageId);
+      if (!messageToDelete) {
+        console.error("❌ Message not found in current messages");
+        alert("Сообщение не найдено");
+        return;
+      }
+
+      console.log("💾 Saved message for potential rollback:", messageToDelete.id);
 
       const deleteUrl = `/api/whatsapp/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`;
       const params = new URLSearchParams();
@@ -161,6 +169,9 @@ export default function ChatPage() {
       if (response.ok) {
         console.log("✅ Message deleted successfully:", responseData);
         
+        // ТОЛЬКО ТЕПЕРЬ удаляем из UI после успешного API ответа
+        setMessages(prev => prev.filter(m => m.id !== messageId));
+        
         // Обновляем чаты через небольшую задержку
         setTimeout(() => {
           loadChats(true);
@@ -169,17 +180,23 @@ export default function ChatPage() {
       } else {
         console.error("❌ Failed to delete message:", response.status, responseData);
         
-        // Восстанавливаем сообщение в случае ошибки
-        // (Здесь можно было бы сохранить оригинальное сообщение для восстановления)
-        
-        alert(
-          responseData.error || 
-          `Не удалось удалить сообщение (${response.status})`
-        );
-
-        // Перезагружаем сообщения чтобы восстановить состояние
-        if (chatId) {
-          loadMessages(chatId, true);
+        // Проверяем специфические ошибки
+        if (response.status === 400 || response.status === 502) {
+          // Возможно сообщение уже удалено - проверим это
+          console.log("🔍 Message might be already deleted, refreshing messages...");
+          
+          // Перезагружаем сообщения чтобы синхронизировать состояние
+          if (chatId) {
+            loadMessages(chatId, true);
+          }
+          
+          // Не показываем ошибку если сообщение уже удалено
+          alert("Сообщение могло быть уже удалено. Обновляем список сообщений...");
+        } else {
+          alert(
+            responseData.error || 
+            `Не удалось удалить сообщение (${response.status})`
+          );
         }
       }
 
@@ -403,15 +420,23 @@ export default function ChatPage() {
     try {
       console.log(`Loading messages for chat: ${decodedChatId}`);
 
+      // Получаем токен через tokenStorage
+      const authToken = tokenStorage.getToken();
+      
+      const headers: Record<string, string> = {
+        "Cache-Control": "no-cache",
+        "Content-Type": "application/json",
+      };
+      
+      if (authToken) {
+        headers["Authorization"] = `Bearer ${authToken}`;
+      }
+
       const res = await fetch(
         `/api/whatsapp/chats/${encodeURIComponent(decodedChatId)}/messages`,
         {
           cache: "no-store",
-          headers: {
-            "Cache-Control": "no-cache",
-            "Authorization": `Bearer ${apiConfig.getAccessToken()}`,
-            "Content-Type": "application/json",
-          },
+          headers,
         }
       );
 
@@ -1551,7 +1576,7 @@ export default function ChatPage() {
         <div className="fixed top-1 left-0 right-0 h-0.5 bg-green-500/20 z-50" />
       )}
 
-      {isLoadingUI && (
+      {(isLoadingUI || isSwitchingChat) && (
         <div className="fixed inset-x-0 top-2 h-[2px] bg-green-500/30 animate-pulse z-50" />
       )}
 
@@ -1565,7 +1590,12 @@ export default function ChatPage() {
         selectedId={chatId ?? undefined}
         setSelectedId={(id) => {
           console.log("Setting selected chat:", id);
-          router.push(`/${id}`);
+          // Показываем состояние переключения
+          setIsSwitchingChat(true);
+          // Плавный переход без перезагрузки страницы
+          router.push(`/${encodeURIComponent(id)}`, { scroll: false });
+          // Убираем состояние переключения через небольшую задержку
+          setTimeout(() => setIsSwitchingChat(false), 300);
         }}
         onCreateChat={handleCreateChat}
         onDeleteChat={handleDeleteChat}
@@ -1600,7 +1630,12 @@ export default function ChatPage() {
               selectedId={chatId ?? undefined}
               setSelectedId={(id) => {
                 console.log("Setting selected chat:", id);
-                router.push(`/${id}`);
+                // Показываем состояние переключения
+                setIsSwitchingChat(true);
+                // Плавный переход без перезагрузки страницы
+                router.push(`/${encodeURIComponent(id)}`, { scroll: false });
+                // Убираем состояние переключения через небольшую задержку
+                setTimeout(() => setIsSwitchingChat(false), 300);
               }}
               onCreateChat={handleCreateChat}
               onDeleteChat={handleDeleteChat}
