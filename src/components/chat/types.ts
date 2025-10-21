@@ -8,6 +8,8 @@ export interface Message {
   time: string;
   createdAt: number;
   status?: "sent" | "delivered" | "read" | "failed";
+  isEdited?: boolean; // Добавляем флаг редактированного сообщения
+  editedAt?: number; // Время последнего редактирования
   media?: {
     url: string;
     type: "image" | "video" | "document" | "audio";
@@ -26,6 +28,23 @@ export interface Message {
       name?: string;
     };
   };
+}
+
+// Интерфейс для редактирования сообщения
+export interface EditMessageRequest {
+  text?: string;
+  seen?: boolean;
+  status?: string;
+  media?: {
+    [key: string]: any;
+  };
+}
+
+// Состояние редактирования в компоненте
+export interface EditingState {
+  messageId: string;
+  originalText: string;
+  newText: string;
 }
 
 export interface ReplyMessage {
@@ -49,11 +68,12 @@ export interface Chat {
   chat_id: string;
   is_group: boolean;
   name?: string;
-  phone?: string; // Добавляем phone
+  phone?: string;
   avatarUrl?: string;
   avatarFallback?: string;
-  lastMessage?: any; // Обновляем тип
+  lastMessage?: any;
   unread?: number;
   time?: string;
-  updatedAt?: number; // Добавляем updatedAt
+  updatedAt?: number;
+  lastSeen?: string; // Добавляем lastSeen для отображения статуса
 }

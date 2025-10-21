@@ -12,8 +12,10 @@ export function makeChats(count = 15): Chat[] {
     const minutes = 9 * 60 + Math.floor(rnd() * 360); // 09:00..15:00
     chats.push({
       id,
+      chat_id: id, // Добавляем обязательное поле chat_id
+      is_group: false, // Добавляем обязательное поле is_group
       name,
-      phone: `+7${700000000 + i}`, // Добавляем phone
+      phone: `+7${700000000 + i}`,
       lastMessage: last,
       time: hhmm(minutes),
       unread: rnd() > 0.7 ? Math.floor(rnd() * 5) + 1 : 0,
@@ -112,6 +114,7 @@ export function makeMessages(chats: Chat[]): Message[] {
         author,
         text,
         time: hhmm(t),
+        createdAt: Date.now() - (1000 * 60 * (1440 - t)), // Добавляем обязательное поле createdAt
         status: me ? (rnd() > 0.8 ? "read" : "delivered") : undefined,
       });
       t += 5 + Math.floor(rnd() * 5);

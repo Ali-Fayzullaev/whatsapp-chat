@@ -19,6 +19,8 @@ type MessageFromAPI = {
 // Преобразуем API-данные в наш UI-формат
 const mapChat = (apiChat: ChatFromAPI): Chat => ({
   id: apiChat.id,
+  chat_id: apiChat.id, // Добавляем обязательное поле
+  is_group: false, // Добавляем обязательное поле
   name: apiChat.phone,
   lastMessage: '', // можно получить из последнего сообщения
   time: new Date(apiChat.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -33,6 +35,7 @@ const mapMessage = (apiMsg: MessageFromAPI, chatId: string): Message => ({
   author: apiMsg.sender === 'user' ? 'me' : 'them',
   text: apiMsg.text || '[Медиа]',
   time: new Date(apiMsg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  createdAt: new Date(apiMsg.timestamp).getTime(), // Добавляем обязательное поле
   status: apiMsg.sender === 'user' ? 'delivered' : undefined,
 });
 
@@ -82,6 +85,47 @@ export const useWhatsAppAPI = (chatId?: string) => {
     }
   };
 
+  // Редактирование сообщения
+  const editMessage = async (messageRef: string, updateData: { text?: string; seen?: boolean; status?: string }) => {
+    if (!chatId) return;
+    
+    try {
+      const token = localStorage.getItem('whatsapp_token');
+      const res = await fetch(`/api/whatsapp/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageRef)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Edit failed: ${res.status}`);
+      }
+
+      const result = await res.json();
+      console.log('✅ Message edited successfully:', result);
+
+      // Обновляем локальное состояние
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageRef 
+          ? { 
+              ...msg, 
+              text: updateData.text || msg.text,
+              isEdited: true,
+              editedAt: Date.now()
+            }
+          : msg
+      ));
+
+      return result;
+    } catch (err) {
+      console.error('Edit failed', err);
+      throw err;
+    }
+  };
+
   useEffect(() => {
     loadChats();
   }, []);
@@ -97,6 +141,7 @@ export const useWhatsAppAPI = (chatId?: string) => {
     messages,
     loading,
     sendMessage,
+    editMessage,
     reloadChats: loadChats,
   };
 };

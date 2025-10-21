@@ -9,6 +9,7 @@ import type { Chat, Message, ReplyMessage } from "@/components/chat/types";
 import { Sidebar } from "@/components/chat/Sidebar";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { Composer } from "@/components/chat/Composer";
+import { ChatHeader } from "@/components/chat/ChatHeader";
 import { useWebSocket } from "@/providers/WebSocketProvider";
 import { MobileSidebar } from "@/components/chat/MobileSidebar";
 import { Menu, MessageCircleMore, MoreVertical, RefreshCw } from "lucide-react";
@@ -350,7 +351,7 @@ export default function ChatPage() {
       }
 
       const items: any[] = Array.isArray(data) ? data : [];
-
+      
       const mapped: Chat[] = items.map((raw: any, i: number) => {
         const rawId = raw?.chat_id || raw?.id;
         const id = rawId ? String(rawId) : `temp-${i}`;
@@ -1645,79 +1646,15 @@ export default function ChatPage() {
 
         {/* Chat area */}
         <main className="flex-1 flex flex-col">
-          {/* 💬 WhatsApp Style: Мобильный хедер чата */}
-          <div
-            // 📌 Изменение: Фон и цвет текста как в WhatsApp
-            className="md:hidden border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
-          >
-            <div className="flex items-center justify-between p-3">
-              {/* Кнопка открытия Sidebar (Назад) */}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setMobileSidebarOpen(true)}
-                className="md:hidden flex-shrink-0"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-
-              <div className="flex-1 text-center min-w-0">
-                {selectedChat ? (
-                  <div className="flex items-center gap-3 w-full pl-2">
-                    {/* Аватар собеседника */}
-                    <Avatar className="h-10 w-10 flex-shrink-0">
-                      <AvatarImage
-                        src={selectedChat.avatarUrl}
-                        alt={selectedChat.name}
-                      />
-                      <AvatarFallback className="bg-green-500 text-white">
-                        {selectedChat.avatarFallback}
-                      </AvatarFallback>
-                    </Avatar>
-
-                    {/* Имя и статус */}
-                    <div className="text-left truncate">
-                      <div className="font-semibold text-base truncate">
-                        {selectedChat.name || selectedChat.phone}
-                      </div>
-                      <div className="text-xs text-green-600 dark:text-green-400">
-                        {isConnected ? "онлайн" : "был(а) недавно"}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  // Сообщение при отсутствии выбранного чата
-                  <div className="font-medium text-gray-500 dark:text-gray-400">
-                    Выберите чат
-                  </div>
-                )}
-              </div>
-
-              {/* Правая часть хедера: Кнопка обновления + Меню чата */}
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {/* 📌 Добавлено: Кнопка принудительного обновления */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={forceRefresh}
-                  disabled={loadingChats}
-                >
-                  <RefreshCw
-                    className={`h-5 w-5 ${
-                      loadingChats
-                        ? "animate-spin text-green-500"
-                        : "text-gray-500"
-                    }`}
-                  />
-                </Button>
-
-                {/* Меню чата */}
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-5 w-5 text-gray-500" />
-                </Button>
-              </div>
-            </div>
-          </div>
+          {/* Chat Header - показываем если есть chatId */}
+          {chatId && (
+            <ChatHeader
+              chat={selectedChat}
+              chatId={chatId}
+              onBack={() => setMobileSidebarOpen(true)}
+              showBackButton={true}
+            />
+          )}
 
           {/* Баннер про скрытый чат (оставляем без изменений) */}
           {(isTempChat ||

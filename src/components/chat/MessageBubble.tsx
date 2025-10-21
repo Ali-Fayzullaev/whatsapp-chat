@@ -10,11 +10,15 @@ import {
   Mic2Icon,
   Reply,
   MoreHorizontal,
-  Trash2
+  Trash2,
+  Edit3,
+  Save,
+  X
 } from "lucide-react";
 import type { Message } from "./types";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,14 +39,20 @@ interface MessageBubbleProps {
   onReply?: (message: Message) => void;
   isReplying?: boolean;
   onDelete?: (messageId: string, remote?: boolean) => void;
+  onEdit?: (messageId: string, newText: string) => Promise<void>; // Добавляем onEdit
 }
 
-export function MessageBubble({ msg, onReply, isReplying, onDelete }: MessageBubbleProps) {
+export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: MessageBubbleProps) {
   const isMe = msg.author === "me";
   const [imageError, setImageError] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteRemote, setDeleteRemote] = useState(false);
+  
+  // Состояние для редактирования
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(msg.text);
+  const [isEditLoading, setIsEditLoading] = useState(false);
 
   const handleDownload = (url: string, filename: string) => {
     const link = document.createElement('a');
@@ -76,6 +86,45 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete }: MessageBub
       console.warn("🗑️ onDelete function is not provided");
     }
     setShowDeleteDialog(false);
+  };
+
+  // Функции для редактирования
+  const handleEdit = () => {
+    setIsEditing(true);
+    setEditText(msg.text);
+    setShowMenu(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!onEdit || editText.trim() === msg.text) {
+      setIsEditing(false);
+      return;
+    }
+
+    setIsEditLoading(true);
+    try {
+      await onEdit(msg.id, editText.trim());
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to edit message:", error);
+      // Можно добавить уведомление об ошибке
+    } finally {
+      setIsEditLoading(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditText(msg.text);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSaveEdit();
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
   };
 
   // 🔹 Telegram Style: Рендеринг сообщения, на которое отвечают
@@ -383,6 +432,13 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete }: MessageBub
                 <File className="h-4 w-4 mr-2" />
                 Копировать текст
               </DropdownMenuItem>
+              {/* Добавляем пункт редактирования только для своих сообщений */}
+              {isMe && onEdit && !msg.media && (
+                <DropdownMenuItem onClick={handleEdit}>
+                  <Edit3 className="h-4 w-4 mr-2" />
+                  Редактировать
+                </DropdownMenuItem>
+              )}
               {onDelete && (
                 <>
                   <DropdownMenuItem 
@@ -416,7 +472,47 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete }: MessageBub
         {/* 🔹 Текст сообщения */}
         {msg.text && (
           <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-            {msg.text}
+            {isEditing ? (
+              <div className="space-y-2">
+                <Input
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  className="min-h-[80px] resize-none"
+                  placeholder="Введите сообщение..."
+                  disabled={isEditLoading}
+                  autoFocus
+                />
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCancelEdit}
+                    disabled={isEditLoading}
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Отмена
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveEdit}
+                    disabled={isEditLoading || editText.trim() === msg.text}
+                  >
+                    <Save className="h-3 w-3 mr-1" />
+                    {isEditLoading ? "Сохранение..." : "Сохранить"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {msg.text}
+                {msg.isEdited && (
+                  <span className="text-xs text-gray-500 ml-2 italic">
+                    изменено
+                  </span>
+                )}
+              </>
+            )}
           </div>
         )}
         

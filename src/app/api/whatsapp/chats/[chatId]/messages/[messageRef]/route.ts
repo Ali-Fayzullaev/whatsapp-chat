@@ -168,3 +168,105 @@ export async function DELETE(
     );
   }
 }
+
+// PATCH: Обновить сообщение
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ chatId: string; messageRef: string }> }
+) {
+  try {
+    const resolvedParams = await params;
+    const { chatId, messageRef } = resolvedParams;
+    
+    console.log('=== PATCH MESSAGE API ===');
+    console.log('Chat ID:', chatId);
+    console.log('Message Ref:', messageRef);
+
+    if (!chatId || !messageRef) {
+      return NextResponse.json(
+        { error: 'Missing chatId or messageRef' },
+        { status: 400 }
+      );
+    }
+
+    // Получаем данные для обновления
+    const body = await req.json();
+    console.log('Update data:', body);
+
+    // Получаем токен авторизации
+    const authHeader = req.headers.get('authorization');
+    let token = '';
+    
+    console.log("Auth header received:", authHeader ? `Bearer ${authHeader.substring(7, 17)}...` : 'missing');
+    
+    if (authHeader) {
+      token = authHeader.replace('Bearer ', '');
+    } else {
+      // Fallback: пробуем получить из cookies
+      const cookieHeader = req.headers.get('cookie');
+      if (cookieHeader) {
+        const cookies = cookieHeader.split(';');
+        for (const cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'auth_token') {
+            token = decodeURIComponent(value);
+            console.log("Token found in cookies");
+            break;
+          }
+        }
+      }
+    }
+
+    if (!token) {
+      console.error('No authorization token provided');
+      return NextResponse.json(
+        { error: 'Authorization token required' },
+        { status: 401 }
+      );
+    }
+
+    // Выполняем PATCH запрос к внешнему API
+    const apiUrl = `${apiConfig.getBaseUrl()}/api/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageRef)}`;
+    console.log('API URL:', apiUrl);
+
+    const response = await fetch(apiUrl, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    console.log('API Response status:', response.status);
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('API Error response:', errorData);
+      
+      return NextResponse.json(
+        { 
+          error: `API error: ${response.status}`,
+          details: errorData 
+        },
+        { status: response.status }
+      );
+    }
+
+    const result = await response.json();
+    console.log('✅ Message updated successfully:', result);
+
+    return NextResponse.json(result);
+
+  } catch (error) {
+    console.error('Edit message error:', error);
+    
+    return NextResponse.json(
+      {
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    );
+  }
+}
