@@ -3,11 +3,11 @@ import { tokenStorage, TokenUtils } from './token-storage';
 
 class ApiConfig {
   private static instance: ApiConfig;
-  private baseUrl = "https://socket.eldor.kz";
-  private BASE_URL = "https://socket.eldor.kz";
+  private baseUrl = process.env.WHATSAPP_API_BASE_URL || "https://socket.eldor.kz";
+  private BASE_URL = process.env.WHATSAPP_API_BASE_URL || "https://socket.eldor.kz";
   private accessToken: string | null = null;
-  // Fallback токен для разработки
-  private fallbackToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImZ1bGxfbmFtZSI6InRlc3QiLCJ1c2VyX2lkIjoiMTIiLCJleHAiOjE3NjA5NTMwMzB9.hBjWO-KkYhgubovpHX50yU_V0lTHjYeRszKNxrWRS7E";
+  // Fallback токен из переменной окружения или дефолтный
+  private fallbackToken = process.env.WHATSAPP_JWT_TOKEN || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImZ1bGxfbmFtZSI6InRlc3QiLCJ1c2VyX2lkIjoiMTIiLCJleHAiOjE3NjA5NTMwMzB9.hBjWO-KkYhgubovpHX50yU_V0lTHjYeRszKNxrWRS7E";
 
   private constructor() {
     // Пытаемся загрузить токен из хранилища при инициализации

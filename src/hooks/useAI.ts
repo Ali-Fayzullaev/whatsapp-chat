@@ -162,9 +162,14 @@ export function useAI() {
     await new Promise(resolve => setTimeout(resolve, settings.autoReplyDelay));
 
     try {
-      await onReply(aiResponse.response);
-      console.log('🤖 Auto-reply sent:', aiResponse.response);
-      return true;
+      if (aiResponse.response) {
+        await onReply(aiResponse.response);
+        console.log('🤖 Auto-reply sent:', aiResponse.response);
+        return true;
+      } else {
+        console.warn('🤖 AI response is empty');
+        return false;
+      }
     } catch (error) {
       console.error('🤖 Failed to send auto-reply:', error);
       return false;
