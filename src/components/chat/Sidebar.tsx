@@ -214,7 +214,7 @@ export function Sidebar({
                   key={chatId}
                   className={`border-b border-gray-100 dark:border-gray-800 group ${
                     chatId === selectedId
-                      ? "bg-blue-50 dark:bg-blue-900/20"
+                      ? "bg-green-50 dark:bg-green-900/20 border-r-4 border-r-green-500"
                       : "hover:bg-gray-50 dark:hover:bg-gray-800"
                   }`}
                 >
@@ -228,7 +228,7 @@ export function Sidebar({
                         {chat.avatarUrl ? (
                           <AvatarImage src={chat.avatarUrl} alt={chat.name} />
                         ) : (
-                          <AvatarFallback className="bg-blue-500 text-white">
+                          <AvatarFallback className="bg-green-500 text-white">
                             {chat.avatarFallback ||
                               (typeof chat.name === "string"
                                 ? chat.name.charAt(0)
@@ -261,7 +261,7 @@ export function Sidebar({
                           </div>
 
                           {chat.unread ? (
-                            <Badge className="bg-blue-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-xs p-0">
+                            <Badge className="bg-green-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-xs p-0 ml-2">
                               {chat.unread}
                             </Badge>
                           ) : null}

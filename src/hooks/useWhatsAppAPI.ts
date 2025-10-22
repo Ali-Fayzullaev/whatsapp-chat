@@ -37,6 +37,7 @@ const mapMessage = (apiMsg: MessageFromAPI, chatId: string): Message => ({
   time: new Date(apiMsg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
   createdAt: new Date(apiMsg.timestamp).getTime(), // Добавляем обязательное поле
   status: apiMsg.sender === 'user' ? 'delivered' : undefined,
+  isRead: apiMsg.sender === 'user', // Мои сообщения всегда прочитаны, входящие - нет
 });
 
 export const useWhatsAppAPI = (chatId?: string) => {
@@ -164,6 +165,35 @@ export const useWhatsAppAPI = (chatId?: string) => {
     }
   };
 
+  // Отметить сообщения как прочитанные при открытии чата
+  const markMessagesAsRead = (chatId: string) => {
+    setMessages(prev => prev.map(msg => 
+      msg.chatId === chatId && msg.author === 'them' && !msg.isRead
+        ? { ...msg, isRead: true }
+        : msg
+    ));
+
+    // Обновляем количество непрочитанных в чатах
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId || chat.chat_id === chatId
+        ? { ...chat, unread: 0 }
+        : chat
+    ));
+  };
+
+  // Обновить количество непрочитанных при получении нового сообщения
+  const updateUnreadCount = (chatId: string) => {
+    const unreadCount = messages.filter(msg => 
+      (msg.chatId === chatId) && msg.author === 'them' && !msg.isRead
+    ).length;
+
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId || chat.chat_id === chatId
+        ? { ...chat, unread: unreadCount }
+        : chat
+    ));
+  };
+
   useEffect(() => {
     loadChats();
   }, []);
@@ -171,8 +201,20 @@ export const useWhatsAppAPI = (chatId?: string) => {
   useEffect(() => {
     if (chatId) {
       loadMessages(chatId);
+      // Отмечаем сообщения как прочитанные когда открываем чат
+      setTimeout(() => markMessagesAsRead(chatId), 100);
     }
   }, [chatId]);
+
+  // Обновляем количество непрочитанных при изменении сообщений
+  useEffect(() => {
+    chats.forEach(chat => {
+      const chatIdToCheck = chat.id || chat.chat_id;
+      if (chatIdToCheck) {
+        updateUnreadCount(chatIdToCheck);
+      }
+    });
+  }, [messages, chats]);
 
   return {
     chats,
@@ -181,5 +223,6 @@ export const useWhatsAppAPI = (chatId?: string) => {
     sendMessage,
     editMessage,
     reloadChats: loadChats,
+    markMessagesAsRead,
   };
 };

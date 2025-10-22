@@ -8,6 +8,7 @@ export interface Message {
   time: string;
   createdAt: number;
   status?: "sent" | "delivered" | "read" | "failed";
+  isRead?: boolean; // Флаг прочитанности сообщения
   isEdited?: boolean; // Добавляем флаг редактированного сообщения
   editedAt?: number; // Время последнего редактирования
   media?: {

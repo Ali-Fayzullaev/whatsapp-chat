@@ -10,13 +10,13 @@ import { Sidebar } from "@/components/chat/Sidebar";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { Composer } from "@/components/chat/Composer";
 import { ChatHeader } from "@/components/chat/ChatHeader";
-import { useWebSocket } from "@/providers/WebSocketProvider";
 import { MobileSidebar } from "@/components/chat/MobileSidebar";
 import { Menu, MessageCircleMore, MoreVertical, RefreshCw } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { FEATURES } from "@/config/features";
 import { apiConfig } from "@/lib/api-config";
 import { tokenStorage } from "@/lib/token-storage";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -61,8 +61,9 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  // 🔹 WebSocket хуки ТОЛЬКО ОДИН РАЗ наверху
-  const { isConnected, connectionState, sendMessage, onMessage, offMessage, reconnect } = useWebSocket();
+  
+  // 🔹 Хук для управления непрочитанными сообщениями
+  const { markChatAsRead } = useUnreadMessages();
   
 
 
@@ -301,6 +302,8 @@ export default function ChatPage() {
     if (!el) return true;
     return el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   };
+
+
 
   const fmtTime = (ts: number) => {
     try {
@@ -552,6 +555,7 @@ export default function ChatPage() {
             time: fmtTime(createdAt),
             createdAt,
             status,
+            isRead: isOutgoing, // Мои сообщения всегда прочитаны, входящие изначально не прочитаны
           };
 
           // 🔹 ВОССТАНАВЛИВАЕМ REPLYTo ИЗ ЛОКАЛЬНОГО ХРАНИЛИЩА
@@ -586,7 +590,13 @@ export default function ChatPage() {
 
       console.log(`Successfully loaded ${mapped.length} messages`);
       console.log(`🔹 Messages with replyTo:`, mapped.filter(m => m.replyTo).length);
-      setMessages(mapped);
+      
+      // Отмечаем все входящие сообщения как прочитанные при загрузке
+      const messagesWithReadStatus = mapped.map(msg => 
+        msg.author === 'them' ? { ...msg, isRead: true } : msg
+      );
+      
+      setMessages(messagesWithReadStatus);
     } catch (error) {
       console.error("Error loading messages:", error);
       if (!silent) {
@@ -626,150 +636,118 @@ export default function ChatPage() {
     }
   };
 
-  useEffect(() => {
-    const handleWebSocketMessage = (message: any) => {
-      console.log("Processing WebSocket message:", message);
+  // 🔹 УЛУЧШЕННАЯ функция определения типа медиа из данных
+  const detectMediaTypeFromData = (
+    mediaData: any
+  ): "image" | "video" | "audio" | "document" => {
+    console.log("🔍 Detecting media type:", mediaData);
+    
+    // Если тип явно указан в данных
+    if (mediaData.type && mediaData.type !== "document") {
+      console.log("✅ Using explicit type:", mediaData.type);
+      return mediaData.type;
+    }
 
-      // Обработка входящих медиа-сообщений
-      if (
-        (message.type === "new_message" || message.event === "message") &&
-        message.media
-      ) {
-        console.log("New media message received:", message);
-
-        const messageChatId = message.chat_id || message.from;
-
-        if (messageChatId === chatId) {
-          setMessages((prev) => {
-            const newMessage: Message = {
-              id: message.id_message || `ws-${Date.now()}`,
-              chatId: messageChatId,
-              author: "them",
-              text: getIncomingMediaText(message.media),
-              time: fmtTime(Date.now()),
-              createdAt: Date.now(),
-              media: {
-                url: message.media.url,
-                type: detectMediaTypeFromData(message.media), // 🔹 УЛУЧШЕННОЕ ОПРЕДЕЛЕНИЕ
-                name: message.media.name,
-                size: message.media.size,
-                mime: message.media.mime,
-              },
-            };
-
-            if (prev.some((m) => m.id === newMessage.id)) return prev;
-
-            return [...prev, newMessage].sort(
-              (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
-            );
-          });
-
-          setTimeout(scrollToBottom, 100);
-        }
+    // Определяем по MIME типу
+    if (mediaData.mime) {
+      if (mediaData.mime.startsWith("image/")) {
+        console.log("✅ Detected image by MIME:", mediaData.mime);
+        return "image";
       }
-    };
-
-    // 🔹 УЛУЧШЕННАЯ функция определения типа медиа из данных
-    const detectMediaTypeFromData = (
-      mediaData: any
-    ): "image" | "video" | "audio" | "document" => {
-      console.log("🔍 Detecting media type:", mediaData);
-      
-      // Если тип явно указан в данных
-      if (mediaData.type && mediaData.type !== "document") {
-        console.log("✅ Using explicit type:", mediaData.type);
-        return mediaData.type;
+      if (mediaData.mime.startsWith("video/")) {
+        console.log("✅ Detected video by MIME:", mediaData.mime);
+        return "video";
       }
-
-      // Определяем по MIME типу
-      if (mediaData.mime) {
-        if (mediaData.mime.startsWith("image/")) {
-          console.log("✅ Detected image by MIME:", mediaData.mime);
-          return "image";
-        }
-        if (mediaData.mime.startsWith("video/")) {
-          console.log("✅ Detected video by MIME:", mediaData.mime);
-          return "video";
-        }
-        if (mediaData.mime.startsWith("audio/")) {
-          console.log("✅ Detected audio by MIME:", mediaData.mime);
-          return "audio";
-        }
+      if (mediaData.mime.startsWith("audio/")) {
+        console.log("✅ Detected audio by MIME:", mediaData.mime);
+        return "audio";
       }
+    }
 
-      // Определяем по имени файла
-      if (mediaData.name || mediaData.url) {
-        const fileName = mediaData.name || mediaData.url;
-        const ext = fileName.split(".").pop()?.toLowerCase();
-        const imageExts = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"];
-        const videoExts = ["mp4", "avi", "mov", "mkv", "webm", "3gp", "ogv"];
-        const audioExts = ["mp3", "wav", "ogg", "aac", "m4a", "flac"];
+    // Определяем по имени файла
+    if (mediaData.name || mediaData.url) {
+      const fileName = mediaData.name || mediaData.url;
+      const ext = fileName.split(".").pop()?.toLowerCase();
+      const imageExts = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"];
+      const videoExts = ["mp4", "avi", "mov", "mkv", "webm", "3gp", "ogv"];
+      const audioExts = ["mp3", "wav", "ogg", "aac", "m4a", "flac"];
 
-        if (imageExts.includes(ext)) {
-          console.log("✅ Detected image by extension:", ext);
-          return "image";
-        }
-        if (videoExts.includes(ext)) {
-          console.log("✅ Detected video by extension:", ext);
-          return "video";
-        }
-        if (audioExts.includes(ext)) {
-          console.log("✅ Detected audio by extension:", ext);
-          return "audio";
-        }
+      if (imageExts.includes(ext)) {
+        console.log("✅ Detected image by extension:", ext);
+        return "image";
       }
+      if (videoExts.includes(ext)) {
+        console.log("✅ Detected video by extension:", ext);
+        return "video";
+      }
+      if (audioExts.includes(ext)) {
+        console.log("✅ Detected audio by extension:", ext);
+        return "audio";
+      }
+    }
 
-      console.log("⚠️ Defaulting to document type");
-      return "document";
-    };
+    console.log("⚠️ Defaulting to document type");
+    return "document";
+  };
 
-    // 🔹 УЛУЧШЕННАЯ функция для текста медиа-сообщений
-    const getIncomingMediaText = (mediaData: any) => {
-      const mediaType = detectMediaTypeFromData(mediaData);
+  // 🔹 УЛУЧШЕННАЯ функция для текста медиа-сообщений
+  const getIncomingMediaText = (mediaData: any) => {
+    const mediaType = detectMediaTypeFromData(mediaData);
 
-      switch (mediaType) {
-        case "image":
+    switch (mediaType) {
+      case "image":
+        return "📷 Изображение";
+      case "video":
+        return "🎥 Видео";
+      case "audio":
+        return "🎵 Аудио";
+      case "document":
+        // Если это изображение, но пришло как документ
+        if (
+          mediaData.name?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ||
+          mediaData.mime?.startsWith("image/")
+        ) {
           return "📷 Изображение";
-        case "video":
-          return "🎥 Видео";
-        case "audio":
-          return "🎵 Аудио";
-        case "document":
-          // Если это изображение, но пришло как документ
-          if (
-            mediaData.name?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ||
-            mediaData.mime?.startsWith("image/")
-          ) {
-            return "📷 Изображение";
-          }
-          return `📄 ${mediaData.name || "Документ"}`;
-        default:
-          return "📎 Файл";
-      }
-    };
+        }
+        return `📄 ${mediaData.name || "Документ"}`;
+      default:
+        return "📎 Файл";
+    }
+  };
 
-    // Вспомогательная функция для преобразования статусов
-    const getStatusFromAck = (ack: number) => {
-      switch (ack) {
-        case 1:
-          return "sent";
-        case 2:
-          return "delivered";
-        case 3:
-          return "read";
-        default:
-          return "sent";
-      }
-    };
+  // Вспомогательная функция для преобразования статусов
+  const getStatusFromAck = (ack: number) => {
+    switch (ack) {
+      case 1:
+        return "sent";
+      case 2:
+        return "delivered";
+      case 3:
+        return "read";
+      default:
+        return "sent";
+    }
+  };
 
-    // Подписываемся на сообщения
-    onMessage(handleWebSocketMessage);
 
-    // Отписываемся при размонтировании
-    return () => {
-      offMessage(handleWebSocketMessage);
-    };
-  }, [chatId, onMessage, offMessage, loadChats]);
+
+  // 📚 Основной useEffect для загрузки данных
+  useEffect(() => {
+    console.log("=== MAIN DATA LOADING EFFECT ===");
+    console.log("Chat ID:", chatId);
+    
+    // Загружаем чаты при первом запуске
+    loadChats();
+    
+    // Загружаем сообщения если есть chatId
+    if (chatId) {
+      console.log("Loading messages for chat:", chatId);
+      loadMessages(chatId);
+      
+      // Помечаем чат как прочитанный при открытии
+      markChatAsRead(chatId);
+    }
+  }, [chatId, loadChats, loadMessages, markChatAsRead]);
 
   // ✅ Исправленный быстрый старт чата
   const handleCreateChat = async (rawPhone: string) => {
@@ -806,6 +784,7 @@ export default function ChatPage() {
       time: fmtTime(now),
       createdAt: now,
       status: "sent",
+      isRead: true, // Мои сообщения всегда прочитаны
       replyTo: currentReplyTo
         ? {
             id: currentReplyTo.id,
@@ -946,68 +925,11 @@ export default function ChatPage() {
 
       console.log("=== SENDING MESSAGE TO REAL CHAT ===");
       console.log("Real chat ID:", realChatId);
-      console.log("WebSocket connected:", isConnected);
-      console.log("Replying to:", currentReplyTo); // 🔹 Логируем информацию об ответе
+      console.log("Replying to:", currentReplyTo);
 
-      // 🔹 ПРИОРИТЕТ: Отправка через WebSocket если подключен
-      if (isConnected) {
-        console.log("Sending via WebSocket");
-
-        const wsMessage = {
-          action: "send_message",
-          chat_id: realChatId,
-          message: text,
-          temp_id: tempMsgId,
-          type: "text",
-          // 🔹 Используем сохраненное значение
-          reply_to: currentReplyTo
-            ? {
-                message_id: currentReplyTo.id,
-                chat_id: realChatId,
-              }
-            : undefined,
-        };
-
-        console.log("WebSocket message payload:", wsMessage);
-
-        sendMessage(wsMessage);
-
-        const fallbackTimeout = setTimeout(() => {
-          console.log("WebSocket timeout, falling back to HTTP");
-          sendViaHttp(realChatId, text, tempMsgId, currentReplyTo);
-        }, 3000);
-
-        const cleanup = () => clearTimeout(fallbackTimeout);
-
-        const handleSentConfirmation = (message: any) => {
-          if (message.temp_id === tempMsgId || message.id_message) {
-            console.log("Message sent confirmation received:", message);
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === tempMsgId
-                  ? {
-                      ...m,
-                      id: message.id_message || m.id,
-                      status: "delivered",
-                    }
-                  : m
-              )
-            );
-            cleanup();
-            offMessage(handleSentConfirmation);
-          }
-        };
-
-        onMessage(handleSentConfirmation);
-
-        setTimeout(() => {
-          loadChats(true);
-        }, 1000);
-      } else {
-        // 🔹 РЕЗЕРВ: Отправка через HTTP если WebSocket не доступен
-        console.log("WebSocket not connected, sending via HTTP");
-        sendViaHttp(realChatId, text, tempMsgId, currentReplyTo);
-      }
+      // Всегда используем HTTP API (WebSocket отключен)
+      console.log("Sending via HTTP API");
+      sendViaHttp(realChatId, text, tempMsgId, currentReplyTo);
     } catch (error) {
       console.error("Send message error:", error);
       setMessages((prev) =>
@@ -1110,6 +1032,7 @@ export default function ChatPage() {
       time: fmtTime(now),
       createdAt: now,
       status: "sent",
+      isRead: true, // Мои сообщения всегда прочитаны
       // 🔹 ДОБАВЛЕНО: информация об ответе для медиа
       replyTo: replyingTo
         ? {
@@ -1394,24 +1317,29 @@ export default function ChatPage() {
     if (chatId) {
       console.log("Loading messages for chat:", chatId);
       loadMessages(chatId);
+      
+      // 🔹 Помечаем чат как прочитанный при его открытии
+      if (!isTempChat) {
+        markChatAsRead(chatId);
+        console.log("✅ Чат помечен как прочитанный:", chatId);
+      }
+      
+      // Сбрасываем счетчик непрочитанных сообщений для текущего чата
+      setChats(prevChats => prevChats.map(chat => 
+        (chat.id === chatId || chat.chat_id === chatId)
+          ? { ...chat, unread: 0 }
+          : chat
+      ));
     }
-  }, [chatId, loadMessages]);
+  }, [chatId, loadMessages, markChatAsRead, isTempChat]);
 
-  // HTTP Polling для обновления данных когда WebSocket недоступен
+
+
+  // HTTP Polling для обновления данных (WebSocket отключен)
   useEffect(() => {
-    // Определяем нужен ли polling
-    const shouldPoll = !FEATURES.WEBSOCKET_ENABLED || 
-                      connectionState === 'error' || 
-                      connectionState === 'disconnected';
-
-    if (!shouldPoll) {
-      console.log("📡 WebSocket активен - polling отключен");
-      return;
-    }
-
-    console.log("🔄 HTTP polling активен (WebSocket недоступен)");
+    console.log("🔄 HTTP polling активен");
     
-    // Более частое обновление в HTTP режиме
+    // Обновление данных каждые 5 секунд
     const pollInterval = setInterval(() => {
       if (document.visibilityState === "visible") {
         setIsPolling(true);
@@ -1430,7 +1358,7 @@ export default function ChatPage() {
       console.log("🔄 HTTP polling остановлен");
       clearInterval(pollInterval);
     };
-  }, [chatId, isTempChat, connectionState, loadChats, loadMessages]);
+  }, [chatId, isTempChat, loadChats, loadMessages]);
 
   useEffect(() => {
     if (isNearBottom()) scrollToBottom();
@@ -1465,44 +1393,9 @@ export default function ChatPage() {
     setHiddenPhones((prev) => prev.filter((p) => p !== phone));
   };
 
-  // Добавьте эту функцию для тестирования
-  const testWebSocketConnection = () => {
-    console.log("=== WEBSOCKET TEST ===");
-    console.log("Connected:", isConnected);
 
-    // Тестовая отправка сообщения
-    if (isConnected && chatId && !isTempChat) {
-      sendMessage({
-        action: "ping",
-        timestamp: Date.now(),
-      });
-    }
-  };
-  // Добавьте кнопку для тестирования в UI (временно)
-  <Button
-    variant="outline"
-    size="sm"
-    onClick={testWebSocketConnection}
-    className="absolute top-2 right-2 z-50"
-  >
-    Test WS
-  </Button>;
 
-  // Мониторинг состояния WebSocket
-  useEffect(() => {
-    console.log("=== WEBSOCKET STATUS ===");
-    console.log("Connected:", isConnected);
-    console.log("State:", connectionState);
-    console.log("Chat ID:", chatId);
-    console.log("Is temp chat:", isTempChat);
-    
-    // Дополнительная информация при изменении состояния
-    if (connectionState === 'connected' && !isTempChat && chatId) {
-      console.log(`✅ Ready to send messages for chat: ${chatId}`);
-    } else if (connectionState === 'error') {
-      console.log("❌ WebSocket connection failed - messages will be sent via HTTP");
-    }
-  }, [isConnected, connectionState, chatId, isTempChat]);
+
   const isLoadingUI = loadingChats || loadingMessages;
 
   // Улучшенная функция скролла
@@ -1548,51 +1441,15 @@ export default function ChatPage() {
 
   return (
     <TooltipProvider>
-      {/* Улучшенный индикатор WebSocket подключения */}
+      {/* HTTP режим индикатор */}
       <div
-        className={`fixed top-0 left-0 right-0 h-1 z-50 transition-all ${
-          connectionState === 'connected' ? "bg-green-500" : 
-          connectionState === 'connecting' ? "bg-yellow-500 animate-pulse" :
-          connectionState === 'error' ? "bg-red-600 animate-pulse" :
-          "bg-red-500 animate-pulse"
-        }`}
-        title={
-          connectionState === 'connected' ? "WebSocket подключен" :
-          connectionState === 'connecting' ? "Подключение..." :
-          connectionState === 'error' ? "Ошибка подключения" :
-          "WebSocket отключен"
-        }
+        className="fixed top-0 left-0 right-0 h-1 z-50 bg-blue-500"
+        title="HTTP режим активен"
       />
       
-      {/* Информация о режиме и переподключение */}
-      {FEATURES.SHOW_CONNECTION_STATUS && (
-        <>
-          
-          {FEATURES.WEBSOCKET_ENABLED && (connectionState === 'error' || connectionState === 'disconnected') && (
-            <div className="fixed top-2 right-2 z-50 flex gap-2">
-              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-1 rounded-md text-xs">
-                📡 HTTP-режим (WebSocket недоступен)
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={reconnect}
-                className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
-              >
-                🔄 Переподключить
-              </Button>
-            </div>
-          )}
-          
-          {FEATURES.WEBSOCKET_ENABLED && connectionState === 'connecting' && (
-            <div className="fixed top-2 right-2 z-50">
-              <div className="bg-blue-50 border border-blue-200 text-blue-800 px-3 py-1 rounded-md text-xs">
-                🔄 Подключение к WebSocket...
-              </div>
-            </div>
-          )}
-        </>
-      )}
+
+
+
 
       {isPolling && (
         <div className="fixed top-1 left-0 right-0 h-0.5 bg-green-500/20 z-50" />
@@ -1676,8 +1533,6 @@ export default function ChatPage() {
               showBackButton={true}
             />
           )}
-
-
 
           {/* Баннер про скрытый чат (оставляем без изменений) */}
           {(isTempChat ||
