@@ -20,7 +20,6 @@
 # production
 /build
 
-src/lib/deepseek.ts
 # misc
 .DS_Store
 *.pem
