@@ -403,7 +403,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         className={[
           "relative max-w-[70%] rounded-2xl px-4 py-3",
           isMe
-            ? "bg-blue-500 text-white rounded-br-md order-1"
+            ? " py-3 text-black bg-[#E7FFDB]"
             : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-md border border-gray-200 dark:border-gray-700 order-2",
         ].join(" ")}
       >
@@ -522,7 +522,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
             isMe ? "text-blue-200" : "text-gray-500"
           }`}
         >
-          <span>{msg.time}</span>
+          <span className="text-black/50">{msg.time}</span>
           {isMe &&
             (msg.pending ? (
               <div className="w-3 h-3 border border-blue-300 border-t-transparent rounded-full animate-spin" />

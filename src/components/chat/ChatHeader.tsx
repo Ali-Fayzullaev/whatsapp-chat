@@ -99,84 +99,101 @@ export  function ChatHeader({
 
   return (
     <>
-      <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-      {/* Кнопка назад (для мобильных) */}
-      {showBackButton && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onBack}
-          className="md:hidden"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-      )}
-
-      {/* Аватар */}
-      <Avatar className="h-10 w-10">
-        {chat?.avatarUrl ? (
-          <AvatarImage src={chat.avatarUrl} alt={getDisplayName()} />
-        ) : (
-          <AvatarFallback className="bg-green-500 text-white">
-            {getAvatarFallback()}
-          </AvatarFallback>
+      <div className="flex items-center gap-3 p-4 h-[70px] bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        {/* Кнопка назад (для мобильных) */}
+        {showBackButton && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="md:hidden p-2 h-10 w-10 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
         )}
-      </Avatar>
 
-      {/* Информация о чате */}
-      <div className="flex-1 min-w-0">
-        <div className="font-semibold text-gray-900 dark:text-white truncate">
-          {getDisplayName()}
+        {/* Аватар с индикатором онлайн */}
+        <div className="relative">
+          <Avatar className="h-11 w-11 ring-2 ring-gray-200 dark:ring-gray-600">
+            {chat?.avatarUrl ? (
+              <AvatarImage src={chat.avatarUrl} alt={getDisplayName()} />
+            ) : (
+              <AvatarFallback className="bg-gradient-to-br from-[#00a884] to-green-600 text-white font-medium text-sm">
+                {getAvatarFallback()}
+              </AvatarFallback>
+            )}
+          </Avatar>
+          {/* Индикатор онлайн */}
+          {!chatId.startsWith("temp:") && (
+            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></div>
+          )}
         </div>
-        <div className="text-sm text-gray-500 dark:text-gray-400 truncate flex items-center gap-2">
-          {getStatus()}
 
+        {/* Информация о чате */}
+        <div className="flex-1 min-w-0 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-700/50 rounded-md p-2 -m-2 transition-colors">
+          <div className="font-medium text-[16px] text-gray-900 dark:text-white truncate">
+            {getDisplayName()}
+          </div>
+          <div className="text-[13px] text-green-600 dark:text-green-400 truncate font-medium">
+            {chatId.startsWith("temp:") ? "нажмите, чтобы начать чат" : "онлайн"}
+          </div>
+        </div>
+
+        {/* Кнопки действий */}
+        <div className="flex items-center gap-1">
+          {/* Кнопка видеозвонка */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-10 w-10 p-0 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
+          >
+            <Video className="h-5 w-5" />
+          </Button>
+
+          {/* Кнопка голосового звонка */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-10 w-10 p-0 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
+          >
+            <Phone className="h-5 w-5" />
+          </Button>
+
+          {/* Меню дополнительных действий */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 w-10 p-0 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
+              >
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem>
+                Данные контакта
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                Выбрать сообщения
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                Закрепить чат
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                Очистить сообщения
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setShowDeleteDialog(true)}
+                className="text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Удалить чат
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
-
-      {/* Кнопки действий */}
-      <div className="flex items-center gap-1">
-        {/* Кнопка видеозвонка */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-        >
-          <Video className="h-5 w-5" />
-        </Button>
-
-        {/* Кнопка голосового звонка */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-        >
-          <Phone className="h-5 w-5" />
-        </Button>
-
-        {/* Меню дополнительных действий */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-            >
-              <MoreVertical className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem 
-              onClick={() => setShowDeleteDialog(true)}
-              className="text-red-600 focus:text-red-600"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Удалить чат
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </div>
 
     {/* Диалог подтверждения удаления чата */}
     <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

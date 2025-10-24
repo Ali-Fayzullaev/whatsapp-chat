@@ -164,24 +164,54 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   // Состояние загрузки
   if (loading && messages.length === 0) {
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full bg-white dark:bg-gray-900">
         {/* Skeleton header */}
-        <div className="h-16 bg-gray-100 dark:bg-gray-800 border-b animate-pulse"></div>
+        <div className="h-[70px] bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex items-center gap-3">
+          <div className="w-11 h-11 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
+          <div className="flex-1">
+            <div className="w-32 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-1"></div>
+            <div className="w-20 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+          </div>
+          <div className="flex gap-2">
+            <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
+            <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
+            <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
+          </div>
+        </div>
         
         {/* Skeleton messages */}
-        <div className="flex-1 p-4 space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div 
+          className="flex-1 p-4 space-y-4" 
+          style={{ 
+            backgroundImage: `url('/fon_chat.jpeg')`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            backgroundAttachment: "fixed"
+          }}
+        >
+          {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
               className={`flex ${i % 2 ? "justify-end" : "justify-start"}`}
             >
-              <div className="h-12 w-48 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse"></div>
+              <div className={`h-14 rounded-2xl animate-pulse ${
+                i % 2 
+                  ? "w-52 bg-[#00a884]/20" 
+                  : "w-48 bg-white dark:bg-gray-800 shadow-sm"
+              }`}></div>
             </div>
           ))}
         </div>
         
         {/* Skeleton composer */}
-        <div className="h-16 bg-gray-100 dark:bg-gray-800 border-t animate-pulse"></div>
+        <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
+          <div className="flex items-end gap-3">
+            <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
+            <div className="flex-1 h-12 bg-gray-100 dark:bg-gray-800 rounded-full animate-pulse"></div>
+            <div className="w-12 h-12 bg-[#00a884]/20 rounded-full animate-pulse"></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -233,17 +263,10 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
 
       {/* Messages Area */}
       <ScrollArea
-        className="flex-1"
+        className="flex-1 bg-[#F6EFE6]"
         ref={(el) => {
           const viewport = el?.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
           scrollContainerRef.current = viewport;
-        }}
-        style={{
-          backgroundImage: `url('/telegramm-bg-tile.png')`,
-          backgroundAttachment: "fixed",
-          backgroundRepeat: "no-repeat",
-          backgroundSize: "cover",
-          backgroundColor: "#ECE5DD",
         }}
       >
         <div className="px-3 md:px-6 py-4 space-y-3">
