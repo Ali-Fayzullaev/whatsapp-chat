@@ -524,7 +524,9 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         >
           <span>{msg.time}</span>
           {isMe &&
-            (msg.status === "read" ? (
+            (msg.pending ? (
+              <div className="w-3 h-3 border border-blue-300 border-t-transparent rounded-full animate-spin" />
+            ) : msg.status === "read" ? (
               <CheckCheck className="h-3 w-3 text-blue-300" />
             ) : msg.status === "delivered" ? (
               <CheckCheck className="h-3 w-3" />

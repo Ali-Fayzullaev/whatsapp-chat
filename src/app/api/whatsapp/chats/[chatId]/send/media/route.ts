@@ -6,49 +6,53 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ chatId: string }> }
 ) {
-  const resolvedParams = await params;
-  const { chatId } = resolvedParams;
-
-  console.log("=== SEND MEDIA MESSAGE API ===");
-  console.log("Chat ID:", chatId);
-
-  // 🔹 ДОБАВЛЕНО: Получаем токен авторизации из заголовка
-  const authHeader = req.headers.get('authorization');
-  let token = '';
-  
-  if (authHeader) {
-    token = authHeader.replace('Bearer ', '');
-  } else {
-    token = apiConfig.getAccessToken() || '';
-  }
-
-  if (!token) {
-    console.error('No access token available');
-    return Response.json(
-      { error: 'Authorization token required' },
-      { status: 401 }
-    );
-  }
-
   try {
-    const formData = await req.formData();
-    const file = formData.get("file") as File;
-    const caption = formData.get("caption") as string | null;
-    const replyToMessageId = formData.get("reply_to_message_id") as
-      | string
-      | null; // 🔹 ДОБАВЛЕНО
+    console.log("=== SEND MEDIA MESSAGE API ===");
+    
+    const resolvedParams = await params;
+    const chatId = decodeURIComponent(resolvedParams.chatId);
+    console.log("Chat ID:", chatId);
 
-    console.log("Media file details:", {
-      name: file?.name,
-      type: file?.type,
-      size: file?.size,
-      caption: caption,
-      replyToMessageId: replyToMessageId, // 🔹 Логируем
-    });
-
-    if (!file) {
-      return Response.json({ error: "Файл обязателен" }, { status: 400 });
+    // Получаем токен авторизации
+    const authHeader = req.headers.get('authorization');
+    let token = '';
+    
+    if (authHeader) {
+      token = authHeader.replace('Bearer ', '');
+    } else {
+      // Fallback: пробуем получить из cookies
+      const cookieHeader = req.headers.get('cookie');
+      if (cookieHeader) {
+        const cookies = cookieHeader.split(';');
+        for (const cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'auth_token') {
+            token = decodeURIComponent(value);
+            break;
+          }
+        }
+      }
     }
+
+    if (!token) {
+      console.error('No authorization token provided');
+      return Response.json(
+        { error: 'Authorization token required' },
+        { status: 401 }
+      );
+    }
+
+    const { media_url, caption, reply_to } = await req.json();
+    
+    if (!media_url) {
+      return Response.json({ error: "URL медиа обязателен" }, { status: 400 });
+    }
+
+    console.log("Sending media message:", {
+      chatId,
+      media_url,
+      caption
+    });
 
     const decodedId = decodeURIComponent(chatId);
 

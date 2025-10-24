@@ -190,6 +190,57 @@ export class ApiClient {
     return response.json();
   }
 
+  // Отправка медиа-сообщения
+  static async sendMediaMessage(chatId: string, mediaUrl: string, caption?: string, replyTo?: any): Promise<any> {
+    // Инвалидируем кэш сообщений для этого чата
+    dataCache.invalidate(`messages-${chatId}`);
+    dataCache.invalidate("chats");
+
+    const response = await fetch(`/api/whatsapp/send-media-temp`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiConfig.getAccessToken()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        chatId,
+        media_url: mediaUrl,
+        caption: caption || "",
+        reply_to: replyTo,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Send media error response:', errorText);
+      throw new Error(`Send media message error: ${response.status} - ${errorText}`);
+    }
+
+    return response.json();
+  }
+
+  // Удаление чата
+  static async deleteChat(chatId: string): Promise<any> {
+    dataCache.invalidate("chats");
+    dataCache.invalidate(`messages-${chatId}`);
+
+    const response = await fetch(`/api/whatsapp/chats/${encodeURIComponent(chatId)}/delete`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${apiConfig.getAccessToken()}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Delete chat error response:', errorText);
+      throw new Error(`Delete chat error: ${response.status} - ${errorText}`);
+    }
+
+    return response.json();
+  }
+
   // Создание нового чата
   static async startChat(phone: string): Promise<any> {
     dataCache.invalidate("chats");

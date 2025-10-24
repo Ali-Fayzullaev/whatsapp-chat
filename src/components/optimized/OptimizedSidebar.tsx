@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Menu, MessageCircleMore, MoreVertical, Plus, Search } from "lucide-react";
 import { useChats } from "@/hooks/useChats";
+
+import { DevDiagnostic } from "@/components/DevDiagnostic";
 import type { Chat } from "@/components/chat/types";
 
 // Мемоизированный компонент чата
@@ -198,6 +200,12 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
           )}
         </div>
       </ScrollArea>
+
+      {/* Debug Panel */}
+      <div className="p-2 border-t space-y-2">
+
+        <DevDiagnostic />
+      </div>
     </div>
   );
 }

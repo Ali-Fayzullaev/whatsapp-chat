@@ -1,6 +1,6 @@
 // src/components/optimized/OptimizedChat.tsx
 "use client";
-import { useState, useRef, useEffect, useCallback, memo } from "react";
+import { useState, useRef, useEffect, useCallback, memo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -25,10 +25,11 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   const [replyingTo, setReplyingTo] = useState<ReplyMessage | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   const { chats } = useChats();
-  const { messages, loading, sendMessage, deleteMessage } = useMessages(chatId);
+  const { messages, loading, sendMessage, sendMediaMessage, deleteMessage } = useMessages(chatId);
 
   // Обработчик возврата к списку чатов для мобильных устройств
   const handleBackToSidebar = useCallback(() => {
@@ -72,14 +73,19 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
     if (!text.trim() || !chatId) return;
 
     const stick = isNearBottom();
-    await sendMessage(text.trim(), replyTo);
-    setDraft("");
-    setReplyingTo(null);
+    
+    // Обернем sendMessage в transition
+    startTransition(() => {
+      sendMessage(text.trim(), replyTo).then(() => {
+        setDraft("");
+        setReplyingTo(null);
 
-    if (stick) {
-      setTimeout(scrollToBottom, 50);
-    }
-  }, [chatId, sendMessage, isNearBottom, scrollToBottom]);
+        if (stick) {
+          setTimeout(scrollToBottom, 50);
+        }
+      });
+    });
+  }, [chatId, sendMessage, isNearBottom, scrollToBottom, startTransition]);
 
   // Обработчик ответа на сообщение
   const handleReplyToMessage = useCallback((message: Message) => {
@@ -104,6 +110,56 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
     if (!chatId) return;
     await deleteMessage(messageId, remote);
   }, [chatId, deleteMessage]);
+
+  // Обработчик отправки файлов
+  const handleFileSelect = useCallback(async (file: File) => {
+    if (!chatId) return;
+    
+    try {
+      console.log('Uploading file:', file.name, 'to chat:', chatId);
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('chatId', chatId);
+      
+      // Используем fetch для отправки файла с авторизацией
+      const response = await fetch('/api/whatsapp/files/upload-image', {
+        method: 'POST',
+        headers: {
+          // НЕ устанавливаем Content-Type - браузер сам добавит boundary для FormData
+        },
+        body: formData,
+      });
+      
+      console.log('Upload response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Upload failed:', response.status, errorText);
+        
+        // Показать пользователю более понятную ошибку
+        alert(`Ошибка загрузки файла: ${response.status === 404 ? 'API не найден' : errorText}`);
+        return;
+      }
+      
+      const result = await response.json();
+      console.log('File uploaded successfully:', result);
+      
+      // Создаем полный URL медиа
+      const mediaUrl = result.path ? `https://socket.eldor.kz${result.path}` : result.mediaUrl || result.url;
+      console.log('Media URL:', mediaUrl);
+      
+      // Отправить медиа-сообщение в transition
+      startTransition(() => {
+        sendMediaMessage(file, mediaUrl, replyingTo);
+        setReplyingTo(null);
+      });
+      
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert(`Ошибка при загрузке: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
+  }, [chatId, sendMessage]);
 
   // Состояние загрузки
   if (loading && messages.length === 0) {
@@ -219,9 +275,9 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
           draft={draft}
           setDraft={setDraft}
           onSend={handleSend}
-          onFileSelect={() => {}} // TODO: Implement file handling
-          disabled={!chatId}
-          placeholder="Введите сообщение..."
+          onFileSelect={handleFileSelect}
+          disabled={!chatId || isPending}
+          placeholder={isPending ? "Отправка..." : "Введите сообщение..."}
           replyingTo={replyingTo}
           onCancelReply={handleCancelReply}
         />

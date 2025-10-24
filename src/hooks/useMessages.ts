@@ -45,7 +45,12 @@ export function useMessages(chatId: string | null) {
       const messagesData = await ApiClient.getChatMessages(targetChatId);
       
       startTransition(() => {
-        setMessages(messagesData);
+        // Убираем pending флаг у всех сообщений при перезагрузке
+        const cleanedMessages = messagesData.map(msg => ({ 
+          ...msg, 
+          pending: false 
+        }));
+        setMessages(cleanedMessages);
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to load messages";
@@ -53,6 +58,86 @@ export function useMessages(chatId: string | null) {
       console.error("Load messages error:", err);
     } finally {
       if (!silent) setLoading(false);
+    }
+  };
+
+  // Отправка медиа-сообщения
+  const sendMediaMessage = async (file: File, mediaUrl: string, replyTo?: any) => {
+    if (!chatId) return;
+
+    const tempId = crypto.randomUUID();
+    const now = Date.now();
+
+    // Определяем тип медиа
+    const getMediaType = (file: File) => {
+      if (file.type.startsWith('image/')) return 'image';
+      if (file.type.startsWith('video/')) return 'video'; 
+      if (file.type.startsWith('audio/')) return 'audio';
+      return 'document';
+    };
+
+    // Создаем оптимистичное медиа-сообщение
+    const optimisticMsg: OptimisticMessage = {
+      id: tempId,
+      chatId,
+      author: "me",
+      text: "",
+      time: new Date(now).toLocaleTimeString("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      createdAt: now,
+      status: "sent",
+      isRead: true,
+      pending: true,
+      media: {
+        url: mediaUrl,
+        type: getMediaType(file),
+        name: file.name,
+        size: file.size,
+        mime: file.type,
+      },
+      ...(replyTo && { replyTo })
+    };
+
+    // Добавляем оптимистично в transition
+    startTransition(() => {
+      addOptimisticMessage(optimisticMsg);
+    });
+
+    try {
+      let actualChatId = chatId;
+
+      // Если это временный чат, создаем реальный
+      if (chatId.startsWith("temp:")) {
+        const phone = chatId.replace("temp:", "");
+        const apiPhone = `${phone}@c.us`;
+        
+        const startResult = await ApiClient.startChat(apiPhone);
+        if (startResult?.chat_id) {
+          actualChatId = String(startResult.chat_id);
+        }
+      }
+
+      // Отправляем медиа через API
+      await ApiClient.sendMediaMessage(actualChatId, mediaUrl, "", replyTo);
+
+      // Перезагружаем сообщения чтобы получить реальное медиа-сообщение
+      setTimeout(() => {
+        loadMessages(actualChatId, true);
+      }, 1000);
+
+    } catch (err) {
+      console.error("Send media message error:", err);
+      
+      // Помечаем сообщение как неудачное
+      startTransition(() => {
+        setMessages(prev => prev.map(msg => 
+          msg.id === tempId 
+            ? { ...msg, status: "failed", pending: false }
+            : msg
+        ));
+      });
     }
   };
 
@@ -79,8 +164,10 @@ export function useMessages(chatId: string | null) {
       pending: true,
     };
 
-    // Добавляем оптимистично
-    addOptimisticMessage(optimisticMsg);
+    // Добавляем оптимистично в transition
+    startTransition(() => {
+      addOptimisticMessage(optimisticMsg);
+    });
 
     try {
       let actualChatId = chatId;
@@ -162,6 +249,7 @@ export function useMessages(chatId: string | null) {
     error,
     isPending,
     sendMessage,
+    sendMediaMessage,
     deleteMessage,
     loadMessages,
   };

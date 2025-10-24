@@ -11,6 +11,7 @@ export interface Message {
   isRead?: boolean; // Флаг прочитанности сообщения
   isEdited?: boolean; // Добавляем флаг редактированного сообщения
   editedAt?: number; // Время последнего редактирования
+  pending?: boolean; // Флаг для оптимистических обновлений
   media?: {
     url: string;
     type: "image" | "video" | "document" | "audio";
