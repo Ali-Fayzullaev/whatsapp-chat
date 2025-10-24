@@ -37,7 +37,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cha
   try {
     const decodedId = decodeURIComponent(chatId);
     
-    const url = `${apiConfig.getBaseUrl()}/api/chats/${decodedId}/send/text`;
+    // Если это временный чат, сначала создаем реальный чат
+    let actualChatId = decodedId;
+    if (decodedId.startsWith("temp:")) {
+      const phone = decodedId.replace("temp:", "");
+      const apiPhone = phone.includes("@c.us") ? phone : `${phone}@c.us`;
+      
+      console.log("Creating chat for temp ID:", decodedId);
+      console.log("Phone:", apiPhone);
+      
+      // Создаем чат
+      const createChatUrl = `${apiConfig.getBaseUrl()}/api/chats/start`;
+      const createRes = await fetch(createChatUrl, {
+        method: "POST",
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ phone: apiPhone }),
+      });
+      
+      if (createRes.ok) {
+        const createData = await createRes.json();
+        if (createData?.chat_id) {
+          actualChatId = createData.chat_id;
+          console.log("Created chat with ID:", actualChatId);
+        }
+      } else {
+        console.error("Failed to create chat:", createRes.status);
+        return Response.json({ error: "Не удалось создать чат" }, { status: 400 });
+      }
+    }
+    
+    const url = `${apiConfig.getBaseUrl()}/api/chats/${actualChatId}/send/text`;
     console.log("External API URL:", url);
 
     // 🔹 ПРАВИЛЬНАЯ СТРУКТУРА ДЛЯ ВНЕШНЕГО API
@@ -64,15 +96,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cha
 
     console.log("External API status:", res.status);
     
+    // Сначала читаем ответ как текст, чтобы избежать ошибки "Body has already been read"
+    const responseText = await res.text();
+    console.log("External API response text:", responseText);
+    
     let data;
     try {
-      data = await res.json();
+      data = responseText ? JSON.parse(responseText) : {};
     } catch (parseError) {
       console.error("Failed to parse API response:", parseError);
-      const textResponse = await res.text();
       data = { 
         error: "Invalid JSON response", 
-        raw: textResponse,
+        raw: responseText,
         status: res.status 
       };
     }

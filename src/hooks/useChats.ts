@@ -58,6 +58,37 @@ export function useChats() {
     });
   };
 
+  // Создание нового чата
+  const createChat = async (phone: string): Promise<string> => {
+    const normalizePhone = (raw: string) => {
+      let p = raw.trim().replace(/\D/g, "");
+      if (p.length === 11) return p;
+      if (p.length === 10) return "7" + p;
+      return p;
+    };
+
+    const normalizedPhone = normalizePhone(phone);
+    const tempChatId = `temp:${normalizedPhone}`;
+    
+    return tempChatId;
+  };
+
+  // Удаление чата
+  const deleteChat = async (chatId: string): Promise<boolean> => {
+    try {
+      await ApiClient.deleteChat(chatId);
+      
+      startTransition(() => {
+        setChats(prev => prev.filter(chat => chat.id !== chatId));
+      });
+      
+      return true;
+    } catch (err) {
+      console.error("Delete chat error:", err);
+      return false;
+    }
+  };
+
   return {
     chats,
     loading,
@@ -66,5 +97,7 @@ export function useChats() {
     loadChats,
     updateChat,
     addChat,
+    createChat,
+    deleteChat,
   };
 }

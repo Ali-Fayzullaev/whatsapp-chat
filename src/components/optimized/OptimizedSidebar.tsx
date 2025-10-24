@@ -9,8 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Menu, MessageCircleMore, MoreVertical, Plus, Search } from "lucide-react";
 import { useChats } from "@/hooks/useChats";
-
-import { DevDiagnostic } from "@/components/DevDiagnostic";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { Chat } from "@/components/chat/types";
 
 // Мемоизированный компонент чата
@@ -82,6 +88,8 @@ interface OptimizedSidebarProps {
 
 export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
   const [query, setQuery] = useState("");
+  const [showNewChatDialog, setShowNewChatDialog] = useState(false);
+  const [newChatPhone, setNewChatPhone] = useState("");
   const { chats, loading, isPending } = useChats();
   const router = useRouter();
 
@@ -103,18 +111,36 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
     });
   }, [chats, query]);
 
+  // Обработчик создания нового чата
+  const handleCreateNewChat = useCallback(() => {
+    if (!newChatPhone.trim()) return;
+    
+    // Очищаем номер от лишних символов
+    const cleanPhone = newChatPhone.trim().replace(/[^\d+]/g, '');
+    
+    // Создаем временный чат ID
+    const tempChatId = `temp:${cleanPhone}`;
+    
+    // Закрываем диалог и очищаем поле
+    setShowNewChatDialog(false);
+    setNewChatPhone("");
+    
+    // Переходим к новому чату через query параметр
+    router.push(`/?chat=${encodeURIComponent(tempChatId)}`, { scroll: false });
+  }, [newChatPhone, router]);
+
   // Обработчик выбора чата с оптимизацией
   const handleSelectChat = useCallback((chatId: string) => {
     if (chatId === selectedChatId) return; // Избегаем повторной навигации
     
-    // Используем router.replace для мгновенного переключения без истории
-    router.replace(`/${encodeURIComponent(chatId)}`, { scroll: false });
+    // Используем query параметр для переключения чата
+    router.push(`/?chat=${encodeURIComponent(chatId)}`, { scroll: false });
   }, [router, selectedChatId]);
 
   // Создание нового чата
   const handleCreateChat = useCallback((phone: string) => {
     const tempChatId = `temp:${phone}`;
-    router.push(`/${encodeURIComponent(tempChatId)}`, { scroll: false });
+    router.push(`/?chat=${encodeURIComponent(tempChatId)}`, { scroll: false });
   }, [router]);
 
   if (loading) {
@@ -130,9 +156,11 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
           <Button
             variant="ghost"
             size="sm"
+            onClick={() => setShowNewChatDialog(true)}
             className="text-white hover:bg-green-700 dark:hover:bg-green-600"
+            title="Новый чат"
           >
-            <MessageCircleMore className="h-4 w-4" />
+            <Plus className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
@@ -204,8 +232,50 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
       {/* Debug Panel */}
       <div className="p-2 border-t space-y-2">
 
-        <DevDiagnostic />
+
       </div>
+
+      {/* Диалог нового чата */}
+      <Dialog open={showNewChatDialog} onOpenChange={setShowNewChatDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Новый чат</DialogTitle>
+            <DialogDescription>
+              Введите номер телефона для начала нового чата
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Input
+              placeholder="Например: +7 777 123 4567"
+              value={newChatPhone}
+              onChange={(e) => setNewChatPhone(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleCreateNewChat();
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowNewChatDialog(false);
+                setNewChatPhone("");
+              }}
+            >
+              Отмена
+            </Button>
+            <Button 
+              onClick={handleCreateNewChat}
+              disabled={!newChatPhone.trim()}
+            >
+              Начать чат
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
