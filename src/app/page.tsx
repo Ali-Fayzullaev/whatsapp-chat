@@ -44,7 +44,6 @@ function ChatContent() {
             </h1>
             
             <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-              Отправляйте и получайте сообщения без подключения телефона к интернету.<br/>
               Выберите чат из списка слева, чтобы начать общение.
             </p>
 
