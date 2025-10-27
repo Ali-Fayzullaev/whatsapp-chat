@@ -148,10 +148,9 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
               {msg.replyTo.media.type === 'audio' && <Mic2Icon className="h-3 w-3" />}
               {msg.replyTo.media.type === 'document' && <File className="h-3 w-3" />}
               <span>
-                {msg.replyTo.media.name || 
-                 (msg.replyTo.media.type === 'image' ? 'Изображение' :
-                  msg.replyTo.media.type === 'video' ? 'Видео' :
-                  msg.replyTo.media.type === 'audio' ? 'Аудио' : 'Документ')}
+                {msg.replyTo.media.type === 'image' ? 'Изображение' :
+                 msg.replyTo.media.type === 'video' ? 'Видео' :
+                 msg.replyTo.media.type === 'audio' ? 'Аудиосообщение' : 'Файл'}
               </span>
             </div>
           ) : (
@@ -248,7 +247,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
             {!imageError ? (
               <img 
                 src={msg.media.url} 
-                alt={displayFileName}
+                alt="Изображение"
                 className="w-full h-auto max-w-md object-cover cursor-pointer"
                 onError={() => setImageError(true)}
                 loading="lazy"
@@ -258,7 +257,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
               <div className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-gray-800 rounded-lg">
                 <Image className="h-8 w-8 mb-2 text-gray-400" />
                 <div className="text-sm text-center text-gray-500">
-                  <div className="font-medium">{displayFileName}</div>
+                  <div className="font-medium">Изображение</div>
                   <div className="text-xs mt-1">Не удалось загрузить изображение</div>
                 </div>
               </div>
@@ -281,12 +280,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                 Ваш браузер не поддерживает видео.
               </video>
               
-              {/* Показываем название файла если это не обычное имя */}
-              {displayFileName && displayFileName !== msg.media.url && (
-                <div className="absolute bottom-2 left-2 right-2 bg-black bg-opacity-50 text-white text-xs p-2 rounded">
-                  🎥 {displayFileName}
-                </div>
-              )}
+
             </div>
           </div>
         );
@@ -299,8 +293,8 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                 <Mic2Icon className="h-4 w-4 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm">
-                  {displayFileName}
+                <div className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                  Аудиосообщение
                 </div>
               </div>
             </div>
@@ -323,17 +317,17 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
               {!imageError ? (
                 <img 
                   src={msg.media.url} 
-                  alt={displayFileName}
+                  alt="Изображение"
                   className="w-full h-auto max-w-md object-cover cursor-pointer"
                   onError={() => setImageError(true)}
                   loading="lazy"
                   onClick={() => window.open(msg.media!.url, '_blank')}
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <div className="flex flex-col items-center justify-center p-6 bg-gray-100 dark:bg-gray-800 rounded-lg ">
                   <Image className="h-8 w-8 mb-2 text-gray-400" />
                   <div className="text-sm text-center text-gray-500">
-                    <div className="font-medium">{displayFileName}</div>
+                    <div className="font-medium">Изображение</div>
                     <div className="text-xs mt-1">Не удалось загрузить изображение</div>
                   </div>
                 </div>
@@ -348,8 +342,8 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
               <File className="h-6 w-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm mb-1">
-                {displayFileName}
+              <div className="font-medium text-sm mb-1 text-gray-700 dark:text-gray-300">
+                Файл
               </div>
               {msg.media.size && (
                 <div className="text-xs text-gray-500">
@@ -360,7 +354,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => handleDownload(msg.media!.url, displayFileName)}
+              onClick={() => handleDownload(msg.media!.url, msg.media?.name || 'file')}
               className="flex-shrink-0 text-gray-500 hover:text-blue-500"
               title="Скачать файл"
             >
@@ -472,47 +466,9 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         {/* 🔹 Текст сообщения */}
         {msg.text && (
           <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-            {isEditing ? (
-              <div className="space-y-2">
-                <Input
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  className="min-h-[80px] resize-none"
-                  placeholder="Введите сообщение..."
-                  disabled={isEditLoading}
-                  autoFocus
-                />
-                <div className="flex gap-2 justify-end">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleCancelEdit}
-                    disabled={isEditLoading}
-                  >
-                    <X className="h-3 w-3 mr-1" />
-                    Отмена
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleSaveEdit}
-                    disabled={isEditLoading || editText.trim() === msg.text}
-                  >
-                    <Save className="h-3 w-3 mr-1" />
-                    {isEditLoading ? "Сохранение..." : "Сохранить"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
               <>
                 {msg.text}
-                {msg.isEdited && (
-                  <span className="text-xs text-gray-500 ml-2 italic">
-                    изменено
-                  </span>
-                )}
               </>
-            )}
           </div>
         )}
         

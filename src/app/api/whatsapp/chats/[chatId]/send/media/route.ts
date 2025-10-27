@@ -217,7 +217,7 @@ async function sendMediaToGreenAPI(
       chatId: chatId,
       url: fileUrl,
       fileName: fileName,
-      caption: caption || fileName,
+      caption: caption || "", // Отправляем пустую подпись вместо имени файла
     };
 
     // 🔹 ДОБАВЛЯЕМ информацию об ответе если есть
