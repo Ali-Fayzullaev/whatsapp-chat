@@ -25,6 +25,8 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { tokenStorage } from "@/lib/token-storage";
+import { useToast } from "@/components/ui/toast";
+import { ApiClient } from "@/lib/api-client";
 import type { Chat } from "@/components/chat/types";
 
 // Мемоизированный компонент чата
@@ -77,8 +79,8 @@ const ChatItem = memo(({
           </span>
         </div>
         
-        <div className="flex items-center justify-between">
-          <p className="text-[13px] text-gray-600 dark:text-gray-400 truncate flex-1 leading-relaxed">
+        <div className="flex items-center justify-between w-[300px]">
+          <p className="text-[13px] text-gray-600 dark:text-gray-400 truncate flex-1">
             {typeof chat.lastMessage === 'string' 
               ? chat.lastMessage 
               : chat.lastMessage?.text || "Нажмите, чтобы начать общение"}
@@ -105,7 +107,9 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
   const [query, setQuery] = useState("");
   const [showNewChatDialog, setShowNewChatDialog] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState("");
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
   const { chats, loading, isPending } = useChats();
+  const { addToast } = useToast();
   const router = useRouter();
 
   // Фильтрация чатов с мемоизацией
@@ -126,23 +130,70 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
     });
   }, [chats, query]);
 
-  // Обработчик создания нового чата
-  const handleCreateNewChat = useCallback(() => {
+  // Обработчик создания нового чата с проверкой номера
+  const handleCreateNewChat = useCallback(async () => {
     if (!newChatPhone.trim()) return;
     
     // Очищаем номер от лишних символов
     const cleanPhone = newChatPhone.trim().replace(/[^\d+]/g, '');
     
-    // Создаем временный чат ID
-    const tempChatId = `temp:${cleanPhone}`;
+    if (!cleanPhone) {
+      addToast({
+        type: "error",
+        title: "Неверный номер",
+        description: "Пожалуйста, введите корректный номер телефона"
+      });
+      return;
+    }
     
-    // Закрываем диалог и очищаем поле
-    setShowNewChatDialog(false);
-    setNewChatPhone("");
+    setIsCreatingChat(true);
     
-    // Переходим к новому чату через query параметр
-    router.push(`/?chat=${encodeURIComponent(tempChatId)}`, { scroll: false });
-  }, [newChatPhone, router]);
+    try {
+      // Проверяем номер через API
+      const apiPhone = cleanPhone.includes('@c.us') ? cleanPhone : `${cleanPhone}@c.us`;
+      const result = await ApiClient.startChat(apiPhone);
+      
+      if (result?.chat_id) {
+        // Номер существует, создаем реальный чат
+        const realChatId = String(result.chat_id);
+        
+        // Закрываем диалог и очищаем поле
+        setShowNewChatDialog(false);
+        setNewChatPhone("");
+        
+        addToast({
+          type: "success",
+          title: "Чат создан",
+          description: `Чат с номером ${cleanPhone} успешно создан`
+        });
+        
+        // Переходим к реальному чату
+        router.push(`/?chat=${encodeURIComponent(realChatId)}`, { scroll: false });
+      } else {
+        throw new Error("Номер телефона не зарегистрирован в WhatsApp");
+      }
+    } catch (error) {
+      console.error("Ошибка создания чата:", error);
+      
+      let errorMessage = "Не удалось создать чат";
+      if (error instanceof Error) {
+        if (error.message.includes("422") || error.message.includes("404") || 
+            error.message.includes("не зарегистрирован")) {
+          errorMessage = `Номер ${cleanPhone} не зарегистрирован в WhatsApp`;
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      addToast({
+        type: "error",
+        title: "Ошибка создания чата",
+        description: errorMessage
+      });
+    } finally {
+      setIsCreatingChat(false);
+    }
+  }, [newChatPhone, router, addToast]);
 
   // Обработчик выбора чата с оптимизацией
   const handleSelectChat = useCallback((chatId: string) => {
@@ -168,13 +219,18 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
   }, []);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-full">Загрузка...</div>;
+    return (
+      <div className="h-full flex flex-col bg-white dark:bg-gray-900">
+        <div className="h-[60px] bg-[#00a884] dark:bg-[#008069]"></div>
+        <div className="flex items-center justify-center h-full">Загрузка...</div>
+      </div>
+    );
   }
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
-      {/* Header */}
-      <div className="h-[60px] bg-[#00a884] dark:bg-[#008069] text-white flex items-center justify-between px-4 shadow-md">
+      {/* Header - фиксированная высота */}
+      <div className="h-[60px] bg-[#00a884] dark:bg-[#008069] text-white flex items-center justify-between px-4 shadow-md flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
             <MessageCircleMore className="h-5 w-5 text-[#00a884]" />
@@ -226,8 +282,8 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="p-3 bg-white dark:bg-gray-900">
+      {/* Search - фиксированная высота */}
+      <div className="p-3 bg-white dark:bg-gray-900 flex-shrink-0">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
@@ -240,64 +296,64 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
         </div>
       </div>
 
-      {/* Chat List */}
-      <div className="flex-1 relative">
+      {/* Chat List - растягиваемая область со скроллом */}
+      <div className="flex-1 min-h-0 relative"> {/* Важно: min-h-0 для правильного flexbox */}
         {isPending && (
           <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-[#00a884] to-green-600 animate-pulse z-10" />
         )}
         
-        <ScrollArea className="h-full">
-          {filteredChats.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-              <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6">
-                <MessageCircleMore className="h-10 w-10 text-gray-400" />
+        <ScrollArea className="h-full"> {/* Теперь высота будет корректной */}
+          <div className="bg-white dark:bg-gray-900">
+            {filteredChats.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6">
+                  <MessageCircleMore className="h-10 w-10 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                  {query ? "Ничего не найдено" : "Добро пожаловать в WhatsApp"}
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm leading-relaxed">
+                  {query 
+                    ? "Попробуйте изменить поисковый запрос или создать новый чат"
+                    : "Отправляйте и получайте сообщения без подключения к интернету. Начните с создания нового чата."
+                  }
+                </p>
+                
+                {query && /^\d{10,11}$/.test(query.replace(/\D/g, "")) && (
+                  <Button
+                    onClick={() => handleCreateChat(query.replace(/\D/g, ""))}
+                    className="bg-[#00a884] hover:bg-[#008069] text-white shadow-lg"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Создать чат с {query.replace(/\D/g, "")}
+                  </Button>
+                )}
+                
+                {!query && (
+                  <Button
+                    onClick={() => setShowNewChatDialog(true)}
+                    className="bg-[#00a884] hover:bg-[#008069] text-white shadow-lg"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Начать чат
+                  </Button>
+                )}
               </div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                {query ? "Ничего не найдено" : "Добро пожаловать в WhatsApp"}
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm leading-relaxed">
-                {query 
-                  ? "Попробуйте изменить поисковый запрос или создать новый чат"
-                  : "Отправляйте и получайте сообщения без подключения к интернету. Начните с создания нового чата."
-                }
-              </p>
-              
-              {query && /^\d{10,11}$/.test(query.replace(/\D/g, "")) && (
-                <Button
-                  onClick={() => handleCreateChat(query.replace(/\D/g, ""))}
-                  className="bg-[#00a884] hover:bg-[#008069] text-white shadow-lg"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Создать чат с {query.replace(/\D/g, "")}
-                </Button>
-              )}
-              
-              {!query && (
-                <Button
-                  onClick={() => setShowNewChatDialog(true)}
-                  className="bg-[#00a884] hover:bg-[#008069] text-white shadow-lg"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Начать чат
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-gray-900">
-              {filteredChats.map((chat) => (
-                <ChatItem
-                  key={chat.id}
-                  chat={chat}
-                  isSelected={chat.id === selectedChatId}
-                  onSelect={handleSelectChat}
-                />
-              ))}
-            </div>
-          )}
+            ) : (
+              <>
+                {filteredChats.map((chat) => (
+                  <ChatItem
+                    key={chat.id}
+                    chat={chat}
+                    isSelected={chat.id === selectedChatId}
+                    onSelect={handleSelectChat}
+                  />
+                ))}
+              </>
+            )}
+          </div>
         </ScrollArea>
       </div>
-
-
 
       {/* Диалог нового чата */}
       <Dialog open={showNewChatDialog} onOpenChange={setShowNewChatDialog}>
@@ -315,7 +371,7 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
                 value={newChatPhone}
                 onChange={(e) => setNewChatPhone(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === 'Enter' && !isCreatingChat) {
                     e.preventDefault();
                     handleCreateNewChat();
                   }
@@ -340,10 +396,10 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
             </Button>
             <Button 
               onClick={handleCreateNewChat}
-              disabled={!newChatPhone.trim()}
+              disabled={!newChatPhone.trim() || isCreatingChat}
               className="flex-1 bg-[#00a884] hover:bg-[#008069] text-white"
             >
-              Начать чат
+              {isCreatingChat ? "Проверяем номер..." : "Начать чат"}
             </Button>
           </DialogFooter>
         </DialogContent>

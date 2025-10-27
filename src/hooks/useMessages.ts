@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect, useOptimistic, useTransition } from "react";
 import { ApiClient } from "@/lib/api-client";
+import { useToast } from "@/components/ui/toast";
 import type { Message } from "@/components/chat/types";
 
 interface OptimisticMessage extends Message {
@@ -14,6 +15,7 @@ export function useMessages(chatId: string | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { addToast } = useToast();
 
   // Оптимистичные обновления для мгновенного отображения сообщений
   const [optimisticMessages, addOptimisticMessage] = useOptimistic(
@@ -113,9 +115,35 @@ export function useMessages(chatId: string | null) {
         const phone = chatId.replace("temp:", "");
         const apiPhone = `${phone}@c.us`;
         
-        const startResult = await ApiClient.startChat(apiPhone);
-        if (startResult?.chat_id) {
-          actualChatId = String(startResult.chat_id);
+        try {
+          const startResult = await ApiClient.startChat(apiPhone);
+          if (startResult?.chat_id) {
+            actualChatId = String(startResult.chat_id);
+          } else {
+            throw new Error("Номер телефона не зарегистрирован в WhatsApp");
+          }
+        } catch (startChatError) {
+          console.error("Start chat error for media:", startChatError);
+          
+          // Удаляем оптимистичное сообщение
+          startTransition(() => {
+            setMessages(prev => prev.filter(msg => msg.id !== tempId));
+          });
+
+          let errorMessage = "Не удалось создать чат для отправки медиа";
+          if (startChatError instanceof Error) {
+            if (startChatError.message.includes("422") || startChatError.message.includes("404")) {
+              errorMessage = `Номер ${phone} не зарегистрирован в WhatsApp`;
+            }
+          }
+          
+          addToast({
+            type: "error",
+            title: "Ошибка создания чата",
+            description: errorMessage,
+            duration: 6000
+          });
+          return;
         }
       }
 
@@ -137,6 +165,16 @@ export function useMessages(chatId: string | null) {
             ? { ...msg, status: "failed", pending: false }
             : msg
         ));
+      });
+      
+      let errorMessage = "Не удалось отправить медиафайл";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      addToast({
+        type: "error", 
+        title: "Ошибка отправки медиа",
+        description: errorMessage
       });
     }
   };
@@ -177,9 +215,45 @@ export function useMessages(chatId: string | null) {
         const phone = chatId.replace("temp:", "");
         const apiPhone = `${phone}@c.us`;
         
-        const startResult = await ApiClient.startChat(apiPhone);
-        if (startResult?.chat_id) {
-          actualChatId = String(startResult.chat_id);
+        try {
+          const startResult = await ApiClient.startChat(apiPhone);
+          if (startResult?.chat_id) {
+            actualChatId = String(startResult.chat_id);
+          } else {
+            // Если chat_id не получен, значит номер не найден
+            throw new Error("Номер телефона не зарегистрирован в WhatsApp");
+          }
+        } catch (startChatError) {
+          // Обрабатываем ошибки создания чата
+          console.error("Start chat error:", startChatError);
+          
+          // Удаляем оптимистичное сообщение и показываем ошибку
+          startTransition(() => {
+            setMessages(prev => prev.filter(msg => msg.id !== tempId));
+          });
+
+          // Определяем тип ошибки и показываем соответствующее сообщение
+          let errorMessage = "Не удалось создать чат";
+          if (startChatError instanceof Error) {
+            if (startChatError.message.includes("422") || startChatError.message.includes("404")) {
+              errorMessage = `Номер ${phone} не зарегистрирован в WhatsApp`;
+            } else if (startChatError.message.includes("401")) {
+              errorMessage = "Ошибка авторизации. Проверьте подключение к серверу";
+            } else if (startChatError.message.includes("500")) {
+              errorMessage = "Ошибка сервера. Попробуйте позже";
+            } else {
+              errorMessage = `Ошибка: ${startChatError.message}`;
+            }
+          }
+          
+          // Показываем уведомление пользователю
+          addToast({
+            type: "error",
+            title: "Ошибка создания чата",
+            description: errorMessage,
+            duration: 6000
+          });
+          return;
         }
       }
 
@@ -201,6 +275,17 @@ export function useMessages(chatId: string | null) {
             ? { ...msg, status: "failed", pending: false }
             : msg
         ));
+      });
+      
+      // Показываем ошибку отправки сообщения
+      let errorMessage = "Не удалось отправить сообщение";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      addToast({
+        type: "error",
+        title: "Ошибка отправки",
+        description: errorMessage
       });
     }
   };

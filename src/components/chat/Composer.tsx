@@ -3,9 +3,21 @@
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Paperclip, Send, X, Mic } from "lucide-react";
-import { useRef, useEffect } from "react";
+import { Paperclip, Send, X, Mic, Smile } from "lucide-react";
+import { useRef, useEffect, useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import type { ReplyMessage } from "./types";
+
+const EMOJI_LIST = [
+  "😀", "😁", "😂", "🤣", "😃", "😄", "😅", "😆", "😉", "😊", "😋", "😍", "😘", "🥰", "😗", 
+  "😙", "😚", "🙂", "🤗", "🤩", "🤔", "🤨", "😐", "😑", "😶", "🙄", "😏", "😣", "😥", "😮", 
+  "🤐", "😯", "😪", "😴", "😌", "😛", "😜", "😝", "🤤", "😒", "😓", "😔", "😕", "🙃", "🤑", 
+  "😲", "☹️", "🙁", "😖", "😞", "😟", "😤", "😢", "😭", "😦", "😧", "😨", "😩", "🤯", "😬", 
+  "😰", "😱", "🥵", "🥶", "😳", "🤪", "😵", "😡", "😠", "🤬", "😷", "🤒", "🤕", "🤢", "🤮", 
+  "🤧", "😇", "🤠", "🥳", "🥺", "🤡", "🤥", "🤫", "🤭", "🧐", "🤓", "😈", "👿", "👻", "👽", 
+  "🤖", "💩", "👍", "👎", "🙏", "👏", "🙌", "💪", "🤝", "❤️", "🧡", "💛", "💚", "💙", "💜", 
+  "🤎", "🖤", "🤍", "💔", "❣️", "💕", "💞", "💖", "💗", "💘", "💝", "✨", "⭐", "🌟", "🔥", "🌈",
+];
 
 interface ComposerProps {
   draft: string;
@@ -24,12 +36,13 @@ export function Composer({
   onSend,
   onFileSelect,
   disabled,
-  placeholder = "Сообщение...",
+  placeholder = "Введите сообщение",
   replyingTo,
   onCancelReply,
 }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const handleSubmit = () => {
     const text = draft.trim();
@@ -43,6 +56,23 @@ export function Composer({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
+    }
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newText = draft.slice(0, start) + emoji + draft.slice(end);
+      setDraft(newText);
+
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+        textarea.focus();
+      }, 0);
+    } else {
+      setDraft(draft + emoji);
     }
   };
 
@@ -61,52 +91,84 @@ export function Composer({
   }, [replyingTo]);
 
   return (
-    <div className="p-4 border-t bg-white dark:bg-gray-900 mt-1">
-      {/* 🔹 Telegram Style: Баннер ответа */}
+    <div className="bg-gray-100 dark:bg-gray-800 p-3 border-t border-gray-300 dark:border-gray-600">
+      {/* Баннер ответа в стиле WhatsApp */}
       {replyingTo && (
-        <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg border-l-4 border-blue-500">
-          <div className="flex items-start justify-between">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
-                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                  Ответ на {replyingTo.author === "me" ? "ваше" : "сообщение"}
-                </span>
-              </div>
-              <div className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                {replyingTo.media ? (
-                  <span className="flex items-center gap-1">
-                    {replyingTo.media.type === 'image' && '🖼️ Изображение'}
-                    {replyingTo.media.type === 'video' && '🎥 Видео'}
-                    {replyingTo.media.type === 'audio' && '🎵 Аудио'}
-                    {replyingTo.media.type === 'document' && '📎 Документ'}
-                    {replyingTo.media.name && ` • ${replyingTo.media.name}`}
-                  </span>
-                ) : (
-                  replyingTo.text
-                )}
-              </div>
+        <div className="flex items-center justify-between mb-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-green-500">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                Ответ на {replyingTo.author === "me" ? "ваше" : "сообщение"}
+              </span>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700"
-              onClick={onCancelReply}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
+              {replyingTo.media ? (
+                <span className="flex items-center gap-2">
+                  {replyingTo.media.type === "image" && "🖼️ Изображение"}
+                  {replyingTo.media.type === "video" && "🎥 Видео"}
+                  {replyingTo.media.type === "audio" && "🎵 Аудио"}
+                  {replyingTo.media.type === "document" && "📎 Документ"}
+                  {replyingTo.media.name && ` • ${replyingTo.media.name}`}
+                </span>
+              ) : (
+                replyingTo.text
+              )}
+            </div>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+            onClick={onCancelReply}
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       )}
 
-      <div className="flex items-end gap-3">
+      <div className="flex items-end gap-2">
+        {/* Кнопка эмодзи */}
+        <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full flex-shrink-0"
+              disabled={disabled}
+            >
+              <Smile className="h-5 w-5" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent 
+            className="w-80 p-4 bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 rounded-2xl"
+            align="start"
+            side="top"
+          >
+            <div className="grid grid-cols-8 gap-2 max-h-64 overflow-y-auto">
+              {EMOJI_LIST.map((emoji, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    handleEmojiSelect(emoji);
+                    setShowEmojiPicker(false);
+                  }}
+                  className="w-8 h-8 text-lg hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors flex items-center justify-center"
+                  type="button"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
         {/* Кнопка прикрепления файла */}
         <Button
           variant="ghost"
           size="icon"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled}
-          className="flex-shrink-0 text-gray-500 hover:text-blue-500"
+          className="h-10 w-10 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full flex-shrink-0"
         >
           <Paperclip className="h-5 w-5" />
         </Button>
@@ -120,23 +182,27 @@ export function Composer({
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={disabled}
-            className="min-h-[44px] flex justify-start items-center max-h-[120px] py-3 resize-none rounded-2xl pr-12 bg-gray-100 dark:bg-gray-800 border-0 focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="min-h-[44px] max-h-[120px] py-3 px-4 resize-none rounded-3xl bg-white dark:bg-gray-700 border-0 focus-visible:ring-2 focus-visible:ring-green-500 pr-12"
             rows={1}
           />
         </div>
 
         {/* Кнопка отправки/микрофона */}
         <Button
-          onClick={draft.trim() ? handleSubmit : () => console.log('Start recording...')}
+          onClick={draft.trim() ? handleSubmit : () => console.log("Start recording...")}
           disabled={disabled}
           size="icon"
-          className={`flex-shrink-0 rounded-full ${
+          className={`h-10 w-10 rounded-full flex-shrink-0 transition-all ${
             draft.trim() 
-              ? 'bg-blue-500 hover:bg-blue-600 text-white' 
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-500 hover:bg-gray-300 dark:hover:bg-gray-600'
+              ? "bg-green-500 hover:bg-green-600 text-white" 
+              : "bg-gray-300 dark:bg-gray-600 text-gray-500 hover:bg-gray-400 dark:hover:bg-gray-500"
           }`}
         >
-          {draft.trim() ? <Send className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+          {draft.trim() ? (
+            <Send className="h-5 w-5" />
+          ) : (
+            <Mic className="h-5 w-5" />
+          )}
         </Button>
 
         {/* Скрытый input для файлов */}

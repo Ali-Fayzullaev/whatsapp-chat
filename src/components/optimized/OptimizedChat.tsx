@@ -8,6 +8,7 @@ import { Composer } from "@/components/chat/Composer";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { useMessages } from "@/hooks/useMessages";
 import { useChats } from "@/hooks/useChats";
+import { useToast } from "@/components/ui/toast";
 import type { Message, ReplyMessage } from "@/components/chat/types";
 import { ArrowLeft, MessageCircleMore } from "lucide-react";
 
@@ -28,6 +29,7 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
 
   const { chats } = useChats();
   const { messages, loading, sendMessage, sendMediaMessage, deleteMessage } = useMessages(chatId);
+  const { addToast } = useToast();
 
   const handleBackToSidebar = useCallback(() => {
     if (onBackToSidebar) {
@@ -102,7 +104,11 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
       
       if (!response.ok) {
         const errorText = await response.text();
-        alert(`Ошибка загрузки файла: ${response.status === 404 ? 'API не найден' : errorText}`);
+        addToast({
+          type: "error",
+          title: "Ошибка загрузки файла",
+          description: response.status === 404 ? 'API не найден' : errorText
+        });
         return;
       }
       
@@ -115,7 +121,11 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
       });
       
     } catch (error) {
-      alert(`Ошибка при загрузке: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+      addToast({
+        type: "error",
+        title: "Ошибка при загрузке",
+        description: error instanceof Error ? error.message : 'Неизвестная ошибка'
+      });
     }
   }, [chatId, sendMediaMessage, replyingTo]);
 
@@ -187,7 +197,7 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-y-hidden w-[100%] ">
       <ChatHeader
         chat={selectedChat}
         chatId={chatId}
@@ -198,10 +208,20 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
       <div className="h-1 bg-blue-500" title="HTTP режим активен" />
 
       {isTempChat && (
-        <div className="px-3 md:px-6 py-2 text-xs bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border-b border-yellow-200 dark:border-yellow-800">
-          <span>
-            Новый чат с <b>{chatId?.replace("temp:", "")}</b> — отправьте первое сообщение для создания
-          </span>
+        <div className="px-3 md:px-6 py-3 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800">
+          <div className="flex items-start gap-3">
+            <div className="w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="text-white text-xs font-bold">!</span>
+            </div>
+            <div className="flex-1 text-sm">
+              <div className="font-medium text-amber-800 dark:text-amber-200 mb-1">
+                Новый чат с номером {chatId?.replace("temp:", "")}
+              </div>
+              <div className="text-amber-700 dark:text-amber-300 text-xs leading-relaxed">
+                Номер еще не проверен в WhatsApp. При отправке первого сообщения будет выполнена проверка регистрации в WhatsApp.
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -214,11 +234,24 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
       >
         <div className="px-3 md:px-6 py-4 space-y-3">
           {messages.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              {isTempChat
-                ? "Напишите первое сообщение — чат ещё не создан на сервере"
-                : "Нет сообщений"
-              }
+            <div className="text-center py-12">
+              {isTempChat ? (
+                <div className="max-w-sm mx-auto">
+                  <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <MessageCircleMore className="h-10 w-10 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                    Начать общение с {chatId?.replace("temp:", "")}
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                    Отправьте первое сообщение, чтобы проверить, зарегистрирован ли этот номер в WhatsApp, и начать чат.
+                  </p>
+                </div>
+              ) : (
+                <div className="text-muted-foreground">
+                  Нет сообщений
+                </div>
+              )}
             </div>
           ) : (
             messages.map((message) => (

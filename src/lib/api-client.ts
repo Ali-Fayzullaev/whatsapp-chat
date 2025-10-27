@@ -255,10 +255,34 @@ export class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Start chat error: ${response.status}`);
+      // Пытаемся получить детали ошибки из ответа
+      let errorMessage = `Start chat error: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          if (Array.isArray(errorData.detail)) {
+            errorMessage = errorData.detail.map((d: any) => d.msg).join(", ");
+          } else {
+            errorMessage = errorData.detail;
+          }
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch {
+        // Если не удалось распарсить JSON ошибки, используем стандартное сообщение
+      }
+      
+      throw new Error(errorMessage);
     }
 
-    return response.json();
+    const result = await response.json();
+    
+    // Проверяем что результат содержит chat_id
+    if (!result || typeof result !== 'object') {
+      throw new Error("Получен некорректный ответ от сервера");
+    }
+    
+    return result;
   }
 
   // Удаление сообщения

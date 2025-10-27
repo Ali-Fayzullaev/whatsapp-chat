@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { WebSocketProvider } from "@/providers/WebSocketProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { AuthenticatedApp } from "@/components/AuthenticatedApp";
+import { ToastProvider } from "@/components/ui/toast";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -17,9 +18,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               enableSystem={false}
               disableTransitionOnChange
             >
-              <AuthenticatedApp>
-                {children}
-              </AuthenticatedApp>
+              <ToastProvider>
+                <AuthenticatedApp>
+                  {children}
+                </AuthenticatedApp>
+              </ToastProvider>
             </ThemeProvider>
           </WebSocketProvider>
         </AuthProvider>

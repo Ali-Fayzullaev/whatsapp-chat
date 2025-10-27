@@ -14,9 +14,9 @@ function ChatContent() {
   return (
     <div className="flex h-screen w-full bg-gray-100 dark:bg-gray-800">
       {/* Desktop Sidebar */}
-      <aside className="w-full md:w-[360px] lg:w-[420px] flex-col border-r border-gray-300 dark:border-gray-600 shadow-lg">
-        <OptimizedSidebar selectedChatId={chatId || undefined} />
-      </aside>
+      <aside className="w-full h-screen md:w-[360px] lg:w-[420px] flex flex-col border-r border-gray-300 dark:border-gray-600 shadow-lg">
+    <OptimizedSidebar selectedChatId={chatId || undefined} />
+  </aside>
 
       {/* Main Content */}
       {chatId ? (
