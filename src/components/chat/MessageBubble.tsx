@@ -416,6 +416,8 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
   const formatMessageInfo = (): string => {
     const parts: string[] = [];
     
+    console.log('🔍 formatMessageInfo вызван для сообщения:', msg.id, msg);
+    
     // Отправитель
     if (msg.sender?.name || msg.sender?.full_name) {
       const senderName = msg.sender.full_name || msg.sender.name || 'Неизвестный отправитель';
@@ -499,20 +501,20 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
           </div>
         )}
 
-        {/* Основное сообщение с Tooltip и ContextMenu */}
-        <Tooltip delayDuration={700}>
-          <TooltipTrigger asChild>
-            <ContextMenu 
-              menuItems={[
-                { label: 'Ответить', action: handleContextReply },
-                { label: 'Удалить', action: handleContextDelete },
-                { label: 'Переслать', action: handleContextForward },
-                { label: 'Копировать', action: handleContextCopy, disabled: !msg.text }
-              ]}
-            >
+        {/* Основное сообщение с ContextMenu */}
+        <ContextMenu 
+          menuItems={[
+            { label: 'Ответить', action: handleContextReply },
+            { label: 'Удалить', action: handleContextDelete },
+            { label: 'Переслать', action: handleContextForward },
+            { label: 'Копировать', action: handleContextCopy, disabled: !msg.text }
+          ]}
+        >
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
               <div
                 className={[
-                  "relative rounded-2xl px-3 py-2 sm:px-4 sm:py-3 transition-all duration-200 hover:shadow-md",
+                  "relative rounded-2xl px-3 py-2 sm:px-4 sm:py-3 transition-all duration-200 hover:shadow-md cursor-pointer group-tooltip",
                   isMe
                     ? "bg-[#DCF8C6] text-black"
                     : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700",
@@ -521,6 +523,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                     ? "rounded-br-md" 
                     : "rounded-bl-md"
                 ].join(" ")}
+                onMouseEnter={() => console.log('🐭 Mouse enter на сообщение', msg.id)}
               >
                 {/* Меню опций (появляется при hover) */}
                 <div className={`absolute -top-8 ${isMe ? '-left-2' : '-right-2'} opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10`}>
@@ -609,16 +612,18 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                   </div>
                 </div>
               </div>
-            </ContextMenu>
-          </TooltipTrigger>
-          <TooltipContent 
-            side="top" 
-            className="max-w-xs bg-black text-white text-xs p-2 rounded shadow-lg z-50"
-            sideOffset={8}
-          >
-            {formatMessageInfo()}
-          </TooltipContent>
-        </Tooltip>
+            </TooltipTrigger>
+            <TooltipContent 
+              side="top" 
+              className="max-w-sm bg-gray-900 text-white text-xs p-3 rounded-lg shadow-xl z-50 border border-gray-700"
+              sideOffset={10}
+            >
+              <div className="space-y-1 font-mono text-xs leading-relaxed whitespace-pre-line">
+                {formatMessageInfo()}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </ContextMenu>
       </div>
 
       {/* Диалог подтверждения удаления */}
