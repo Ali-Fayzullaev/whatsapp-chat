@@ -170,7 +170,7 @@ export  function ChatHeader({
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent align="end" className="w-48 bg-white dark:bg-muted">
               <DropdownMenuItem>
                 Данные контакта
               </DropdownMenuItem>

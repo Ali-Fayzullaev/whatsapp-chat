@@ -259,7 +259,7 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-muted">
               <DropdownMenuItem>
                 <Users className="mr-2 h-4 w-4" />
                 <span>Новая группа</span>

@@ -433,7 +433,6 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
   const formatMessageInfo = (): string => {
     const parts: string[] = [];
     
-    console.log('🔍 formatMessageInfo вызван для сообщения:', msg.id, msg);
     
     // Отправитель
     if (msg.sender?.name || msg.sender?.full_name) {
@@ -447,7 +446,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
     if (msg.sender?.user_id) {
       parts.push(`User ID: ${msg.sender.user_id}`);
     } else if (msg.sender?.id) {
-      parts.push(`Sender ID: ${msg.sender.id}`);
+      parts.push(`Sender ID: ${msg.sender.user_id}`);
     }
     
     // Дата и время
@@ -499,24 +498,18 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
   return (
     <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-2 sm:mb-3 group ${isReplying ? 'bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 -m-2' : ''}`}>
       
-      {/* Аватар для входящих сообщений */}
+      {/* Аватар для входящих сообщений
       {!isMe && (
         <div className="flex-shrink-0 mr-2 sm:mr-3">
           <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
             {msg.sender?.name ? msg.sender.name.charAt(0).toUpperCase() : 'U'}
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Контейнер сообщения */}
       <div className={`flex flex-col max-w-[80%] sm:max-w-[70%] md:max-w-[60%] ${isMe ? 'items-end' : 'items-start'}`}>
         
-        {/* Имя отправителя (только для групповых чатов и входящих сообщений) */}
-        {!isMe && (
-          <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-1 px-2">
-            {msg.sender?.name || msg.sender?.full_name || 'Неизвестный пользователь'}
-          </div>
-        )}
 
         {/* Основное сообщение с ContextMenu */}
         <ContextMenu 
