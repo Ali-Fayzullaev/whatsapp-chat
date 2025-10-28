@@ -34,11 +34,6 @@ export function TooltipTest() {
               icon: <Reply className="h-4 w-4" />
             },
             {
-              label: 'Переслать',
-              action: () => console.log('Переслать clicked'),
-              icon: <Forward className="h-4 w-4" />
-            },
-            {
               label: 'Копировать',
               action: () => console.log('Копировать clicked'),
               icon: <Copy className="h-4 w-4" />

@@ -36,6 +36,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ContextMenu } from "@/components/ui/context-menu";
+import { MobileContextMenu } from "@/components/ui/mobile-context-menu";
 import { 
   Tooltip, 
   TooltipContent,
@@ -61,6 +62,10 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(msg.text);
   const [isEditLoading, setIsEditLoading] = useState(false);
+
+  // Состояние для долгого нажатия на мобильных
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
 
   const handleDownload = (url: string, filename: string) => {
     const link = document.createElement('a');
@@ -177,6 +182,33 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
       }).catch(err => {
         console.error("❌ Failed to copy text:", err);
       });
+    }
+  };
+
+  // Обработчики для долгого нажатия на мобильных
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const timer = setTimeout(() => {
+      console.log('📱 Long press detected on mobile');
+      setIsContextMenuOpen(true);
+      // Вибрация если поддерживается
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 500); // 500ms для долгого нажатия
+    setLongPressTimer(timer);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
+
+  const handleTouchMove = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
     }
   };
 
@@ -446,8 +478,10 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
     if (msg.sender?.user_id) {
       parts.push(`User ID: ${msg.sender.user_id}`);
     } else if (msg.sender?.id) {
-      parts.push(`Sender ID: ${msg.sender.user_id}`);
+      parts.push(`Sender ID: ${msg.sender.id}`);
     }
+    
+    // Добавим ID сообщения для отладки
     
     // Дата и время
     if (msg.timestamp) {
@@ -495,80 +529,92 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
   // 🔹 Определяем, является ли сообщение только медиа-файлом
   const isMediaOnly = msg.media && !msg.text;
 
+  // Общие пункты контекстного меню
+  const menuItems = [
+    { 
+      label: 'Ответить', 
+      action: handleContextReply,
+      icon: <Reply className="h-4 w-4" />
+    },
+    { 
+      label: 'Копировать', 
+      action: handleContextCopy, 
+      disabled: !msg.text,
+      icon: <Copy className="h-4 w-4" />
+    },
+    // Для своих сообщений - две опции удаления как в WhatsApp
+    ...(isMe ? [
+      { 
+        label: 'Удалить для меня', 
+        action: handleContextDeleteForMe,
+        className: 'text-orange-600 dark:text-orange-400 focus:bg-orange-50 dark:focus:bg-orange-900/20',
+        icon: <Trash2 className="h-4 w-4" />
+      },
+      { 
+        label: 'Удалить у всех', 
+        action: handleContextDeleteForEveryone,
+        className: 'text-red-600 dark:text-red-400 focus:bg-red-50 dark:focus:bg-red-900/20',
+        icon: <Trash2 className="h-4 w-4" />
+      }
+    ] : [
+      // Для чужих сообщений - только удалить для себя
+      { 
+        label: 'Удалить для меня', 
+        action: handleContextDeleteForMe,
+        className: 'text-orange-600 dark:text-orange-400 focus:bg-orange-50 dark:focus:bg-orange-900/20',
+        icon: <Trash2 className="h-4 w-4" />
+      }
+    ])
+  ];
+
   return (
     <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-2 sm:mb-3 group ${isReplying ? 'bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 -m-2' : ''}`}>
       
-      {/* Аватар для входящих сообщений
+      {/* Аватар для входящих сообщений */}
       {!isMe && (
         <div className="flex-shrink-0 mr-2 sm:mr-3">
-          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium text-white shadow-md">
             {msg.sender?.name ? msg.sender.name.charAt(0).toUpperCase() : 'U'}
           </div>
         </div>
-      )} */}
+      )}
 
       {/* Контейнер сообщения */}
-      <div className={`flex flex-col max-w-[80%] sm:max-w-[70%] md:max-w-[60%] ${isMe ? 'items-end' : 'items-start'}`}>
+      <div className={`flex flex-col max-w-[90%] sm:max-w-[80%] md:max-w-[70%] lg:max-w-[60%] ${isMe ? 'items-end' : 'items-start'} min-w-0`}>
         
 
-        {/* Основное сообщение с ContextMenu */}
-        <ContextMenu 
-          menuItems={[
-            { 
-              label: 'Ответить', 
-              action: handleContextReply,
-              icon: <Reply className="h-4 w-4" />
-            },
-            { 
-              label: 'Переслать', 
-              action: handleContextForward,
-              icon: <Forward className="h-4 w-4" />
-            },
-            { 
-              label: 'Копировать', 
-              action: handleContextCopy, 
-              disabled: !msg.text,
-              icon: <Copy className="h-4 w-4" />
-            },
-            // Для своих сообщений - две опции удаления как в WhatsApp
-            ...(isMe ? [
-              { 
-                label: 'Удалить для меня', 
-                action: handleContextDeleteForMe,
-                className: 'text-orange-600 dark:text-orange-400 focus:bg-orange-50 dark:focus:bg-orange-900/20',
-                icon: <Trash2 className="h-4 w-4" />
-              },
-              { 
-                label: 'Удалить у всех', 
-                action: handleContextDeleteForEveryone,
-                className: 'text-red-600 dark:text-red-400 focus:bg-red-50 dark:focus:bg-red-900/20',
-                icon: <Trash2 className="h-4 w-4" />
-              }
-            ] : [
-              // Для чужих сообщений - только удалить для себя
-              { 
-                label: 'Удалить для меня', 
-                action: handleContextDeleteForMe,
-                className: 'text-orange-600 dark:text-orange-400 focus:bg-orange-50 dark:focus:bg-orange-900/20',
-                icon: <Trash2 className="h-4 w-4" />
-              }
-            ])
-          ]}
-        >
+        {/* Десктопное контекстное меню */}
+        <ContextMenu menuItems={menuItems}>
+          {/* Мобильное контекстное меню */}
+          <MobileContextMenu 
+            menuItems={menuItems}
+            isOpen={isContextMenuOpen}
+            onClose={() => setIsContextMenuOpen(false)}
+          >
           <Tooltip delayDuration={300}>
             <TooltipTrigger asChild>
               <div
                 className={[ 
-                  "relative rounded-2xl px-3 py-2 sm:px-4 sm:py-3 transition-all duration-200 hover:shadow-md cursor-pointer group-tooltip",
+                  "relative rounded-2xl px-3 py-2 sm:px-4 sm:py-3 transition-all duration-200 hover:shadow-md cursor-pointer group-tooltip select-none",
                   isMe
-                    ? "bg-[#DCF8C6] text-black"
-                    : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700",
+                    ? "bg-[#DCF8C6] text-black shadow-sm"
+                    : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600 shadow-sm",
                   // Стили как в настоящем WhatsApp
                   isMe 
                     ? "rounded-br-md" 
-                    : "rounded-bl-md"
+                    : "rounded-bl-md",
+                  // Лучшая видимость на мобильных + перенос текста
+                  "active:scale-[0.98] touch-manipulation min-w-0 w-full"
                 ].join(" ")}
+                style={{ 
+                  wordBreak: 'break-word', 
+                  overflowWrap: 'anywhere',
+                  hyphens: 'auto'
+                }}
                 onMouseEnter={() => console.log('🐭 Mouse enter на сообщение', msg.id)}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+                onTouchMove={handleTouchMove}
               >
                 {/* Меню опций (появляется при hover) */}
                 <div className={`absolute -top-3 ${isMe ? '-left-1' : '-right-1'} opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10`}>
@@ -631,7 +677,15 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                   
                   {/* Текст сообщения */}
                   {msg.text && !isFileNameOnly(msg.text) && (
-                    <div className="break-words text-[15px] leading-relaxed">
+                    <div 
+                      className="text-[14px] sm:text-[15px] leading-relaxed"
+                      style={{
+                        wordBreak: 'break-word',
+                        overflowWrap: 'anywhere',
+                        hyphens: 'auto',
+                        whiteSpace: 'pre-wrap'
+                      }}
+                    >
                       {msg.text.trim()}
                     </div>
                   )}
@@ -660,14 +714,15 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
             </TooltipTrigger>
             <TooltipContent 
               side="top" 
-              className="max-w-sm bg-gray-900 text-white text-xs p-3 rounded-lg shadow-xl z-50 border border-gray-700"
+              className="max-w-xs bg-gray-900 text-white text-xs p-3 rounded-lg shadow-xl z-50 border border-gray-700"
               sideOffset={10}
             >
-              <div className="space-y-1 font-mono text-xs leading-relaxed whitespace-pre-line">
+              <div className="font-mono text-xs leading-relaxed whitespace-pre-line break-words">
                 {formatMessageInfo()}
               </div>
             </TooltipContent>
           </Tooltip>
+          </MobileContextMenu>
         </ContextMenu>
       </div>
 
