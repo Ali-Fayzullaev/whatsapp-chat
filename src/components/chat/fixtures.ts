@@ -116,6 +116,17 @@ export function makeMessages(chats: Chat[]): Message[] {
         time: hhmm(t),
         createdAt: Date.now() - (1000 * 60 * (1440 - t)), // Добавляем обязательное поле createdAt
         status: me ? (rnd() > 0.8 ? "read" : "delivered") : undefined,
+        // Добавляем тестовые данные для tooltip'а
+        sender: {
+          id: me ? "77002104444@c.us" : `${(chat.phone || '+77000000000').replace('+7', '7')}@c.us`,
+          name: me ? "Я" : (chat.name || "Неизвестный"),
+          user_id: me ? "user_12345" : `user_${chat.id}`,
+          full_name: me ? "Мой полный профиль" : `${chat.name || "Неизвестный"} ${(chat.name || "Unknown").split(' ')[0]}ovich`
+        },
+        timestamp: new Date(Date.now() - (1000 * 60 * (1440 - t))).toISOString(),
+        direction: me ? "out" : "in",
+        platform: "whatsapp",
+        id_message: `BAE5CB0724EE30B${i.toString().padStart(2, '0')}`
       });
       t += 5 + Math.floor(rnd() * 5);
       me = !me;

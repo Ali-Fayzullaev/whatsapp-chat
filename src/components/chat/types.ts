@@ -12,6 +12,19 @@ export interface Message {
   isEdited?: boolean; // Добавляем флаг редактированного сообщения
   editedAt?: number; // Время последнего редактирования
   pending?: boolean; // Флаг для оптимистических обновлений
+  
+  // Данные от бэкенда
+  sender?: {
+    id: string;
+    name: string;
+    user_id?: string | null;
+    full_name?: string | null;
+  };
+  timestamp?: string; // ISO строка времени
+  direction?: "in" | "out";
+  platform?: string;
+  id_message?: string;
+  
   media?: {
     url: string;
     type: "image" | "video" | "document" | "audio";

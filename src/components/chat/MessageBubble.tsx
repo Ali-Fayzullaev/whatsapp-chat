@@ -34,6 +34,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ContextMenu } from "@/components/ui/context-menu";
+import { 
+  Tooltip, 
+  TooltipContent,
+  TooltipTrigger 
+} from "@/components/ui/tooltip";
 
 interface MessageBubbleProps {
   msg: Message;
@@ -407,6 +412,68 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
     return uuidFilePattern.test(text.trim()) || simpleUuidPattern.test(text.trim());
   };
 
+  // 🔹 Функция для форматирования информации о сообщении для tooltip
+  const formatMessageInfo = (): string => {
+    const parts: string[] = [];
+    
+    // Отправитель
+    if (msg.sender?.name || msg.sender?.full_name) {
+      const senderName = msg.sender.full_name || msg.sender.name || 'Неизвестный отправитель';
+      parts.push(`Отправитель: ${senderName}`);
+    } else {
+      parts.push(`Отправитель: ${msg.author === 'me' ? 'Вы' : 'Собеседник'}`);
+    }
+    
+    // User ID
+    if (msg.sender?.user_id) {
+      parts.push(`User ID: ${msg.sender.user_id}`);
+    } else if (msg.sender?.id) {
+      parts.push(`Sender ID: ${msg.sender.id}`);
+    }
+    
+    // Дата и время
+    if (msg.timestamp) {
+      try {
+        const date = new Date(msg.timestamp);
+        const formatted = date.toLocaleString('ru-RU', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        parts.push(`Дата: ${formatted}`);
+      } catch (error) {
+        parts.push(`Время: ${msg.time}`);
+      }
+    } else {
+      parts.push(`Время: ${msg.time}`);
+    }
+    
+    // Платформа и направление
+    if (msg.platform) {
+      parts.push(`Платформа: ${msg.platform}`);
+    }
+    
+    if (msg.direction) {
+      const directionText = msg.direction === 'in' ? 'Входящее' : 'Исходящее';
+      parts.push(`Направление: ${directionText}`);
+    }
+    
+    // ID сообщения
+    if (msg.id_message) {
+      parts.push(`ID сообщения: ${msg.id_message}`);
+    }
+    
+    // Всегда показываем хотя бы базовую информацию
+    if (parts.length === 0) {
+      parts.push('Информация о сообщении недоступна');
+    }
+    
+    return parts.join('\n');
+  };
+
   // 🔹 Определяем, является ли сообщение только медиа-файлом
   const isMediaOnly = msg.media && !msg.text;
 
@@ -435,22 +502,25 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         </Button>
       </div>
 
-      <ContextMenu 
-        menuItems={[
-          { label: 'Ответить', action: handleContextReply },
-          { label: 'Удалить', action: handleContextDelete },
-          { label: 'Переслать', action: handleContextForward },
-          { label: 'Копировать', action: handleContextCopy, disabled: !msg.text }
-        ]}
-      >
-        <div
-          className={[
-            "relative max-w-[70%] rounded-2xl px-4 py-3",
-            isMe
-              ? " py-3 text-black bg-[#E7FFDB]"
-              : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-md border border-gray-200 dark:border-gray-700 order-2",
-          ].join(" ")}
-        >
+      <Tooltip delayDuration={500}>
+        <TooltipTrigger asChild>
+          <div>
+            <ContextMenu 
+              menuItems={[
+                { label: 'Ответить', action: handleContextReply },
+                { label: 'Удалить', action: handleContextDelete },
+                { label: 'Переслать', action: handleContextForward },
+                { label: 'Копировать', action: handleContextCopy, disabled: !msg.text }
+              ]}
+            >
+            <div
+              className={[
+                "relative max-w-[70%] rounded-2xl px-4 py-3",
+                isMe
+                  ? " py-3 text-black bg-[#E7FFDB]"
+                  : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-md border border-gray-200 dark:border-gray-700 order-2",
+              ].join(" ")}
+            >
         {/* 🔹 Дополнительное меню с тремя точками */}
         <div className={`absolute top-2 ${isMe ? 'left-2' : 'right-2'} opacity-0 group-hover:opacity-100 transition-opacity duration-200`}>
           <DropdownMenu open={showMenu} onOpenChange={setShowMenu}>
@@ -544,6 +614,18 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         </div>
       </div>
       </ContextMenu>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent 
+          side="top" 
+          className="max-w-sm bg-gray-900 text-white p-3 rounded-lg shadow-lg z-50"
+          sideOffset={5}
+        >
+          <div className="text-xs whitespace-pre-wrap font-mono">
+            {formatMessageInfo()}
+          </div>
+        </TooltipContent>
+      </Tooltip>
 
       {/* Диалог подтверждения удаления */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

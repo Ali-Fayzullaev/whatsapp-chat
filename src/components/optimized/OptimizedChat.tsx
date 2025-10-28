@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { Composer } from "@/components/chat/Composer";
 import { ChatHeader } from "@/components/chat/ChatHeader";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { useMessages } from "@/hooks/useMessages";
 import { useChats } from "@/hooks/useChats";
 import { useToast } from "@/components/ui/toast";
@@ -197,7 +198,8 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-y-hidden w-[100%] ">
+    <TooltipProvider>
+      <div className="flex flex-col h-full overflow-y-hidden w-[100%] ">
       <ChatHeader
         chat={selectedChat}
         chatId={chatId}
@@ -281,5 +283,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
         />
       </div>
     </div>
+    </TooltipProvider>
   );
 }
