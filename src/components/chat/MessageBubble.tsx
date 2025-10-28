@@ -13,7 +13,9 @@ import {
   Trash2,
   Edit3,
   Save,
-  X
+  X,
+  Forward,
+  Copy
 } from "lucide-react";
 import type { Message } from "./types";
 import { Button } from "@/components/ui/button";
@@ -138,12 +140,27 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
     console.log("🔹 Context Reply clicked for message:", msg.id);
     if (onReply) {
       onReply(msg);
+    } else {
+      console.warn("⚠️ onReply function not provided");
     }
   };
 
-  const handleContextDelete = () => {
-    console.log("🗑️ Context Delete clicked for message:", msg.id);
-    handleDelete(false); // Удалить для себя по умолчанию
+  const handleContextDeleteForMe = () => {
+    console.log("🗑️ Context Delete for me clicked for message:", msg.id);
+    if (onDelete) {
+      handleDelete(false); // Удалить для себя
+    } else {
+      console.warn("⚠️ onDelete function not provided");
+    }
+  };
+
+  const handleContextDeleteForEveryone = () => {
+    console.log("🗑️ Context Delete for everyone clicked for message:", msg.id);
+    if (onDelete) {
+      handleDelete(true); // Удалить у всех
+    } else {
+      console.warn("⚠️ onDelete function not provided");
+    }
   };
 
   const handleContextForward = () => {
@@ -504,16 +521,51 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         {/* Основное сообщение с ContextMenu */}
         <ContextMenu 
           menuItems={[
-            { label: 'Ответить', action: handleContextReply },
-            { label: 'Удалить', action: handleContextDelete },
-            { label: 'Переслать', action: handleContextForward },
-            { label: 'Копировать', action: handleContextCopy, disabled: !msg.text }
+            { 
+              label: 'Ответить', 
+              action: handleContextReply,
+              icon: <Reply className="h-4 w-4" />
+            },
+            { 
+              label: 'Переслать', 
+              action: handleContextForward,
+              icon: <Forward className="h-4 w-4" />
+            },
+            { 
+              label: 'Копировать', 
+              action: handleContextCopy, 
+              disabled: !msg.text,
+              icon: <Copy className="h-4 w-4" />
+            },
+            // Для своих сообщений - две опции удаления как в WhatsApp
+            ...(isMe ? [
+              { 
+                label: 'Удалить для меня', 
+                action: handleContextDeleteForMe,
+                className: 'text-orange-600 dark:text-orange-400 focus:bg-orange-50 dark:focus:bg-orange-900/20',
+                icon: <Trash2 className="h-4 w-4" />
+              },
+              { 
+                label: 'Удалить у всех', 
+                action: handleContextDeleteForEveryone,
+                className: 'text-red-600 dark:text-red-400 focus:bg-red-50 dark:focus:bg-red-900/20',
+                icon: <Trash2 className="h-4 w-4" />
+              }
+            ] : [
+              // Для чужих сообщений - только удалить для себя
+              { 
+                label: 'Удалить для меня', 
+                action: handleContextDeleteForMe,
+                className: 'text-orange-600 dark:text-orange-400 focus:bg-orange-50 dark:focus:bg-orange-900/20',
+                icon: <Trash2 className="h-4 w-4" />
+              }
+            ])
           ]}
         >
           <Tooltip delayDuration={300}>
             <TooltipTrigger asChild>
               <div
-                className={[
+                className={[ 
                   "relative rounded-2xl px-3 py-2 sm:px-4 sm:py-3 transition-all duration-200 hover:shadow-md cursor-pointer group-tooltip",
                   isMe
                     ? "bg-[#DCF8C6] text-black"
@@ -526,7 +578,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                 onMouseEnter={() => console.log('🐭 Mouse enter на сообщение', msg.id)}
               >
                 {/* Меню опций (появляется при hover) */}
-                <div className={`absolute -top-8 ${isMe ? '-left-2' : '-right-2'} opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10`}>
+                <div className={`absolute -top-3 ${isMe ? '-left-1' : '-right-1'} opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10`}>
                   <DropdownMenu open={showMenu} onOpenChange={setShowMenu}>
                     <DropdownMenuTrigger asChild>
                       <Button

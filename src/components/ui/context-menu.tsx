@@ -10,6 +10,7 @@ interface MenuItem {
   action: () => void;
   disabled?: boolean;
   className?: string;
+  icon?: React.ReactNode;
 }
 
 interface ContextMenuProps {
@@ -44,6 +45,11 @@ export function ContextMenu({ menuItems, children, className }: ContextMenuProps
                 item.action();
               }}
             >
+              {item.icon && (
+                <span className="mr-2 h-4 w-4">
+                  {item.icon}
+                </span>
+              )}
               {item.label}
             </ContextMenuPrimitive.Item>
           ))}
