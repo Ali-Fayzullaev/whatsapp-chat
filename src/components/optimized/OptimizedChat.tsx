@@ -13,7 +13,16 @@ import { useToast } from "@/components/ui/toast";
 import type { Message, ReplyMessage } from "@/components/chat/types";
 import { ArrowLeft, MessageCircleMore } from "lucide-react";
 
-const MemoizedMessageBubble = memo(MessageBubble);
+const MemoizedMessageBubble = memo(MessageBubble, (prevProps, nextProps) => {
+  return (
+    prevProps.msg.id === nextProps.msg.id &&
+    prevProps.msg.text === nextProps.msg.text &&
+    prevProps.msg.status === nextProps.msg.status &&
+    prevProps.msg.pending === nextProps.msg.pending &&
+    prevProps.isReplying === nextProps.isReplying &&
+    JSON.stringify(prevProps.msg.media) === JSON.stringify(nextProps.msg.media)
+  );
+});
 
 interface OptimizedChatProps {
   chatId: string | null;
@@ -199,13 +208,13 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col h-full overflow-y-hidden w-[100%] ">
-      <ChatHeader
-        chat={selectedChat}
-        chatId={chatId}
-        onBack={handleBackToSidebar}
-        showBackButton={true}
-      />
+      <div className="flex flex-col h-full w-full bg-white dark:bg-gray-900">
+        <ChatHeader
+          chat={selectedChat}
+          chatId={chatId}
+          onBack={handleBackToSidebar}
+          showBackButton={true}
+        />
 
       <div className="h-1 bg-blue-500" title="HTTP режим активен" />
 
@@ -227,14 +236,17 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
         </div>
       )}
 
-      <ScrollArea
-        className="flex-1 bg-[#F6EFE6]"
-        ref={(el) => {
-          const viewport = el?.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
-          scrollContainerRef.current = viewport;
-        }}
-      >
-        <div className="px-3 md:px-6 py-4 space-y-3">
+        <ScrollArea
+          className="flex-1 bg-[#ECE5DD] dark:bg-gray-900/50 bg-opacity-50 bg-whatsapp-pattern"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23cccccc' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+          }}
+          ref={(el) => {
+            const viewport = el?.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
+            scrollContainerRef.current = viewport;
+          }}
+        >
+          <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 space-y-1 sm:space-y-2">
           {messages.length === 0 ? (
             <div className="text-center py-12">
               {isTempChat ? (
@@ -282,7 +294,7 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
           onCancelReply={() => setReplyingTo(null)}
         />
       </div>
-    </div>
+      </div>
     </TooltipProvider>
   );
 }

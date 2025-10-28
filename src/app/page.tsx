@@ -12,22 +12,36 @@ function ChatContent() {
   const chatId = searchParams.get('chat');
 
   return (
-    <div className="flex h-screen w-full bg-gray-100 dark:bg-gray-800">
-      {/* Desktop Sidebar */}
-      <aside className="w-full h-screen md:w-[360px] lg:w-[420px] flex flex-col border-r border-gray-300 dark:border-gray-600 shadow-lg">
-    <OptimizedSidebar selectedChatId={chatId || undefined} />
-  </aside>
-
-      {/* Main Content */}
-      {chatId ? (
-        <main className="flex-1 bg-white dark:bg-gray-900">
+    <div className="flex h-screen w-full bg-white dark:bg-gray-900">
+      {/* Мобильная версия */}
+      <div className="md:hidden flex flex-col h-full w-full">
+        {chatId ? (
           <OptimizedChat 
             chatId={decodeURIComponent(chatId)} 
             onBackToSidebar={() => router.push('/')}
           />
-        </main>
-      ) : (
-        <main className="hidden md:flex flex-1 bg-gray-50 dark:bg-gray-900 items-center justify-center relative">
+        ) : (
+          <OptimizedSidebar selectedChatId={chatId || undefined} />
+        )}
+      </div>
+
+      {/* Десктопная версия */}
+      <div className="hidden md:flex h-full w-full">
+        {/* Sidebar */}
+        <aside className="w-[360px] lg:w-[420px] h-full flex flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <OptimizedSidebar selectedChatId={chatId || undefined} />
+        </aside>
+
+        {/* Main Content */}
+        {chatId ? (
+          <main className="flex-1 bg-[#f0f2f5] dark:bg-gray-900">
+            <OptimizedChat 
+              chatId={decodeURIComponent(chatId)} 
+              onBackToSidebar={() => router.push('/')}
+            />
+          </main>
+        ) : (
+          <main className="flex-1 bg-[#f0f2f5] dark:bg-gray-900 flex items-center justify-center relative">
           {/* WhatsApp Web Style Welcome Screen */}
           <div className="text-center max-w-md px-6">
             {/* WhatsApp Logo */}
@@ -68,14 +82,15 @@ function ChatContent() {
             </div>
           </div>
 
-          {/* Decorative Background Pattern */}
-          <div className="absolute inset-0 opacity-5 dark:opacity-10">
-            <div className="w-full h-full" style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300a884' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-            }}></div>
-          </div>
-        </main>
-      )}
+            {/* Decorative Background Pattern */}
+            <div className="absolute inset-0 opacity-5 dark:opacity-10">
+              <div className="w-full h-full" style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300a884' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+              }}></div>
+            </div>
+          </main>
+        )}
+      </div>
     </div>
   );
 }

@@ -284,7 +284,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
               <img 
                 src={msg.media.url} 
                 alt="Изображение"
-                className="w-full h-auto max-w-md object-cover cursor-pointer"
+                className="w-full h-auto max-w-[250px] sm:max-w-md object-cover cursor-pointer rounded-lg"
                 onError={() => setImageError(true)}
                 loading="lazy"
                 onClick={() => window.open(msg.media!.url, '_blank')}
@@ -307,10 +307,10 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
             <div className="relative">
               <video 
                 controls 
-                className="w-full h-auto max-w-md rounded-lg"
+                className="w-full h-auto max-w-[250px] sm:max-w-md rounded-lg"
                 preload="metadata"
-                poster="" // Можно добавить постер если есть
-                style={{ maxHeight: '400px' }}
+                poster=""
+                style={{ maxHeight: '300px' }}
               >
                 <source src={msg.media.url} type={msg.media.mime || 'video/mp4'} />
                 Ваш браузер не поддерживает видео.
@@ -323,18 +323,18 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
       
       case 'audio':
         return (
-          <div className="mb-3 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg max-w-md w-[40vw]">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-blue-500 rounded-full">
-                <Mic2Icon className="h-4 w-4 text-white" />
+          <div className="mb-3 p-3 sm:p-4 bg-gray-100 dark:bg-gray-800 rounded-lg max-w-[280px] sm:max-w-md w-full">
+            <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+              <div className="p-1.5 sm:p-2 bg-blue-500 rounded-full">
+                <Mic2Icon className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                <div className="font-medium text-xs sm:text-sm text-gray-700 dark:text-gray-300">
                   Аудиосообщение
                 </div>
               </div>
             </div>
-            <audio controls className="w-full">
+            <audio controls className="w-full h-8 sm:h-10">
               <source src={msg.media.url} type={msg.media.mime} />
               Ваш браузер не поддерживает аудио.
             </audio>
@@ -373,12 +373,12 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         }
         
         return (
-          <div className="mb-3 flex items-center gap-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg max-w-md">
-            <div className="p-3 bg-blue-500 rounded-lg">
-              <File className="h-6 w-6 text-white" />
+          <div className="mb-3 flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-100 dark:bg-gray-800 rounded-lg max-w-[280px] sm:max-w-md">
+            <div className="p-2 sm:p-3 bg-blue-500 rounded-lg">
+              <File className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm mb-1 text-gray-700 dark:text-gray-300">
+              <div className="font-medium text-xs sm:text-sm mb-1 text-gray-700 dark:text-gray-300">
                 Файл
               </div>
               {msg.media.size && (
@@ -478,33 +478,30 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
   const isMediaOnly = msg.media && !msg.text;
 
   return (
-    <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-4 group relative ${isReplying ? 'bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 -m-2' : ''}`}>
-      {/* 🔹 Кнопка ответа слева от сообщения (для чужих) или справа (для своих) */}
-      <div className={`${isMe ? 'order-2 ml-2' : 'order-1 mr-2'} flex items-start pt-3`}>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleReply}
-          className={`h-8 w-8 transition-all duration-200 ${
-            isReplying 
-              ? 'opacity-100 scale-110' 
-              : 'opacity-0 group-hover:opacity-100'
-          } ${
-            isMe 
-              ? 'text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20' 
-              : 'text-gray-500 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
-          } ${
-            isReplying ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600' : ''
-          }`}
-          title="Ответить на сообщение"
-        >
-          <Reply className="h-4 w-4" />
-        </Button>
-      </div>
+    <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-2 sm:mb-3 group ${isReplying ? 'bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 -m-2' : ''}`}>
+      
+      {/* Аватар для входящих сообщений */}
+      {!isMe && (
+        <div className="flex-shrink-0 mr-2 sm:mr-3">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+            {msg.sender?.name ? msg.sender.name.charAt(0).toUpperCase() : 'U'}
+          </div>
+        </div>
+      )}
 
-      <Tooltip delayDuration={500}>
-        <TooltipTrigger asChild>
-          <div>
+      {/* Контейнер сообщения */}
+      <div className={`flex flex-col max-w-[80%] sm:max-w-[70%] md:max-w-[60%] ${isMe ? 'items-end' : 'items-start'}`}>
+        
+        {/* Имя отправителя (только для групповых чатов и входящих сообщений) */}
+        {!isMe && (
+          <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-1 px-2">
+            {msg.sender?.name || msg.sender?.full_name || 'Неизвестный пользователь'}
+          </div>
+        )}
+
+        {/* Основное сообщение с Tooltip и ContextMenu */}
+        <Tooltip delayDuration={700}>
+          <TooltipTrigger asChild>
             <ContextMenu 
               menuItems={[
                 { label: 'Ответить', action: handleContextReply },
@@ -513,119 +510,116 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                 { label: 'Копировать', action: handleContextCopy, disabled: !msg.text }
               ]}
             >
-            <div
-              className={[
-                "relative max-w-[70%] rounded-2xl px-4 py-3",
-                isMe
-                  ? " py-3 text-black bg-[#E7FFDB]"
-                  : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-md border border-gray-200 dark:border-gray-700 order-2",
-              ].join(" ")}
-            >
-        {/* 🔹 Дополнительное меню с тремя точками */}
-        <div className={`absolute top-2 ${isMe ? 'left-2' : 'right-2'} opacity-0 group-hover:opacity-100 transition-opacity duration-200`}>
-          <DropdownMenu open={showMenu} onOpenChange={setShowMenu}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`h-6 w-6 ${
+              <div
+                className={[
+                  "relative rounded-2xl px-3 py-2 sm:px-4 sm:py-3 transition-all duration-200 hover:shadow-md",
+                  isMe
+                    ? "bg-[#DCF8C6] text-black"
+                    : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700",
+                  // Стили как в настоящем WhatsApp
                   isMe 
-                    ? 'text-blue-100 hover:text-white hover:bg-blue-600' 
-                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
+                    ? "rounded-br-md" 
+                    : "rounded-bl-md"
+                ].join(" ")}
               >
-                <MoreHorizontal className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="bg-white dark:bg-muted" align={isMe ? "start" : "end"}>
-              <DropdownMenuItem onClick={handleReply}>
-                <Reply className="h-4 w-4 mr-2" />
-                Ответить
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigator.clipboard.writeText(msg.text)}>
-                <File className="h-4 w-4 mr-2" />
-                Копировать текст
-              </DropdownMenuItem>
-              {/* Добавляем пункт редактирования только для своих сообщений */}
-              {isMe && onEdit && !msg.media && (
-                <DropdownMenuItem onClick={handleEdit}>
-                  <Edit3 className="h-4 w-4 mr-2" />
-                  Редактировать
-                </DropdownMenuItem>
-              )}
-              {onDelete && (
-                <>
-                  <DropdownMenuItem 
-                    onClick={() => handleDelete(false)}
-                    className="text-orange-600 focus:text-orange-700"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Удалить для себя
-                  </DropdownMenuItem>
-                  {isMe && (
-                    <DropdownMenuItem 
-                      onClick={() => handleDelete(true)}
-                      className="text-red-600 focus:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Удалить у всех
-                    </DropdownMenuItem>
-                  )}
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+                {/* Меню опций (появляется при hover) */}
+                <div className={`absolute -top-8 ${isMe ? '-left-2' : '-right-2'} opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10`}>
+                  <DropdownMenu open={showMenu} onOpenChange={setShowMenu}>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                      >
+                        <MoreHorizontal className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="bg-white dark:bg-gray-800" align={isMe ? "start" : "end"}>
+                      <DropdownMenuItem onClick={handleReply}>
+                        <Reply className="h-4 w-4 mr-2" />
+                        Ответить
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigator.clipboard.writeText(msg.text)}>
+                        <File className="h-4 w-4 mr-2" />
+                        Копировать текст
+                      </DropdownMenuItem>
+                      {isMe && onEdit && !msg.media && (
+                        <DropdownMenuItem onClick={handleEdit}>
+                          <Edit3 className="h-4 w-4 mr-2" />
+                          Редактировать
+                        </DropdownMenuItem>
+                      )}
+                      {onDelete && (
+                        <>
+                          <DropdownMenuItem 
+                            onClick={() => handleDelete(false)}
+                            className="text-orange-600 focus:text-orange-700"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Удалить для себя
+                          </DropdownMenuItem>
+                          {isMe && (
+                            <DropdownMenuItem 
+                              onClick={() => handleDelete(true)}
+                              className="text-red-600 focus:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Удалить у всех
+                            </DropdownMenuItem>
+                          )}
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
 
-        {/* 🔹 Сообщение, на которое отвечаем */}
-        {renderReply()}
-        
-        {/* 🔹 Медиа */}
-        {renderMedia()}
-        
-        {/* 🔹 Текст сообщения */}
-        {msg.text && !isFileNameOnly(msg.text) && (
-          <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-              <>
-                {msg.text}
-              </>
-          </div>
-        )}
-        
-        {/* 🔹 Telegram Style: Время и статус */}
-        <div
-          className={`flex items-center gap-1 text-xs mt-2 justify-end ${
-            isMe ? "text-blue-200" : "text-gray-500"
-          }`}
-        >
-          <span className="text-black/50">{msg.time}</span>
-          {isMe &&
-            (msg.pending ? (
-              <div className="w-3 h-3 border border-blue-300 border-t-transparent rounded-full animate-spin" />
-            ) : msg.status === "read" ? (
-              <CheckCheck className="h-3 w-3 text-blue-300" />
-            ) : msg.status === "delivered" ? (
-              <CheckCheck className="h-3 w-3" />
-            ) : msg.status === "failed" ? (
-              <span className="text-red-300">⚠️</span>
-            ) : (
-              <Check className="h-3 w-3" />
-            ))}
-        </div>
-      </div>
-      </ContextMenu>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent 
-          side="top" 
-          className="max-w-sm bg-gray-900 text-white p-3 rounded-lg shadow-lg z-50"
-          sideOffset={5}
-        >
-          <div className="text-xs whitespace-pre-wrap font-mono">
+                {/* Контент сообщения */}
+                <div className="space-y-1 sm:space-y-2">
+                  {/* Сообщение, на которое отвечаем */}
+                  {renderReply()}
+                  
+                  {/* Медиа */}
+                  {renderMedia()}
+                  
+                  {/* Текст сообщения */}
+                  {msg.text && !isFileNameOnly(msg.text) && (
+                    <div className="break-words text-[15px] leading-relaxed">
+                      {msg.text.trim()}
+                    </div>
+                  )}
+                  
+                  {/* Время и статус */}
+                  <div className={`flex items-center gap-1 text-[11px] mt-1 justify-end ${
+                    isMe ? "text-gray-600" : "text-gray-500"
+                  }`}>
+                    <span>{msg.time}</span>
+                    {isMe && (
+                      msg.pending ? (
+                        <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+                      ) : msg.status === "read" ? (
+                        <CheckCheck className="h-3 w-3 text-blue-500" />
+                      ) : msg.status === "delivered" ? (
+                        <CheckCheck className="h-3 w-3 text-gray-400" />
+                      ) : msg.status === "failed" ? (
+                        <span className="text-red-500 text-[10px]">⚠️</span>
+                      ) : (
+                        <Check className="h-3 w-3 text-gray-400" />
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+            </ContextMenu>
+          </TooltipTrigger>
+          <TooltipContent 
+            side="top" 
+            className="max-w-xs bg-black text-white text-xs p-2 rounded shadow-lg z-50"
+            sideOffset={8}
+          >
             {formatMessageInfo()}
-          </div>
-        </TooltipContent>
-      </Tooltip>
+          </TooltipContent>
+        </Tooltip>
+      </div>
 
       {/* Диалог подтверждения удаления */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

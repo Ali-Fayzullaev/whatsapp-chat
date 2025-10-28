@@ -91,7 +91,7 @@ export function Composer({
   }, [replyingTo]);
 
   return (
-    <div className="bg-gray-100 dark:bg-gray-800 p-3 border-t border-gray-300 dark:border-gray-600">
+    <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
       {/* Баннер ответа в стиле WhatsApp */}
       {replyingTo && (
         <div className="flex items-center justify-between mb-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-green-500">
@@ -126,17 +126,18 @@ export function Composer({
         </div>
       )}
 
-      <div className="flex items-end gap-2">
+      <div className="p-3">
+        <div className="flex items-end gap-2">
         {/* Кнопка эмодзи */}
         <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
           <PopoverTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="h-10 w-10 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full flex-shrink-0"
+              className="h-8 w-8 sm:h-10 sm:w-10 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full flex-shrink-0"
               disabled={disabled}
             >
-              <Smile className="h-5 w-5" />
+              <Smile className="h-4 w-4 sm:h-5 sm:w-5" />
             </Button>
           </PopoverTrigger>
           <PopoverContent 
@@ -168,9 +169,9 @@ export function Composer({
           size="icon"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled}
-          className="h-10 w-10 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full flex-shrink-0"
+          className="h-8 w-8 sm:h-10 sm:w-10 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full flex-shrink-0"
         >
-          <Paperclip className="h-5 w-5" />
+          <Paperclip className="h-4 w-4 sm:h-5 sm:w-5" />
         </Button>
 
         {/* Поле ввода */}
@@ -182,7 +183,7 @@ export function Composer({
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={disabled}
-            className="min-h-[44px] max-h-[120px] py-3 px-4 resize-none rounded-3xl bg-white dark:bg-gray-700 border-0 focus-visible:ring-2 focus-visible:ring-green-500 pr-12"
+            className="min-h-[36px] sm:min-h-[44px] max-h-[100px] sm:max-h-[120px] py-2 sm:py-3 px-3 sm:px-4 resize-none rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-700 border-0 focus-visible:ring-2 focus-visible:ring-green-500 pr-10 sm:pr-12 text-sm sm:text-base"
             rows={1}
           />
         </div>
@@ -192,16 +193,16 @@ export function Composer({
           onClick={draft.trim() ? handleSubmit : () => console.log("Start recording...")}
           disabled={disabled}
           size="icon"
-          className={`h-10 w-10 rounded-full flex-shrink-0 transition-all ${
+          className={`h-8 w-8 sm:h-10 sm:w-10 rounded-full flex-shrink-0 transition-all ${
             draft.trim() 
               ? "bg-green-500 hover:bg-green-600 text-white" 
               : "bg-gray-300 dark:bg-gray-600 text-gray-500 hover:bg-gray-400 dark:hover:bg-gray-500"
           }`}
         >
           {draft.trim() ? (
-            <Send className="h-5 w-5" />
+            <Send className="h-3 w-3 sm:h-5 sm:w-5" />
           ) : (
-            <Mic className="h-5 w-5" />
+            <Mic className="h-3 w-3 sm:h-5 sm:w-5" />
           )}
         </Button>
 
@@ -214,6 +215,7 @@ export function Composer({
           multiple={false}
           accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
         />
+        </div>
       </div>
     </div>
   );
