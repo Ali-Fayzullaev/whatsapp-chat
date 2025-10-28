@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ContextMenu } from "@/components/ui/context-menu";
 
 interface MessageBubbleProps {
   msg: Message;
@@ -124,6 +125,36 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
       handleSaveEdit();
     } else if (e.key === 'Escape') {
       handleCancelEdit();
+    }
+  };
+
+  // Функции для контекстного меню
+  const handleContextReply = () => {
+    console.log("🔹 Context Reply clicked for message:", msg.id);
+    if (onReply) {
+      onReply(msg);
+    }
+  };
+
+  const handleContextDelete = () => {
+    console.log("🗑️ Context Delete clicked for message:", msg.id);
+    handleDelete(false); // Удалить для себя по умолчанию
+  };
+
+  const handleContextForward = () => {
+    console.log("📤 Context Forward clicked for message:", msg.id);
+    // TODO: Реализовать функцию пересылки
+    console.log("Forward functionality not implemented yet");
+  };
+
+  const handleContextCopy = () => {
+    console.log("📋 Context Copy clicked for message:", msg.id);
+    if (msg.text) {
+      navigator.clipboard.writeText(msg.text).then(() => {
+        console.log("✅ Text copied to clipboard");
+      }).catch(err => {
+        console.error("❌ Failed to copy text:", err);
+      });
     }
   };
 
@@ -365,6 +396,17 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
     }
   };
 
+  // 🔹 Проверяем, является ли текст только именем файла (UUID + расширение)
+  const isFileNameOnly = (text: string): boolean => {
+    if (!text || !msg.media) return false;
+    
+    // Проверяем, является ли текст UUID именем файла
+    const uuidFilePattern = /^📄\s*[a-f0-9-]+\.[a-zA-Z0-9]+$/i;
+    const simpleUuidPattern = /^[a-f0-9-]+\.[a-zA-Z0-9]+$/i;
+    
+    return uuidFilePattern.test(text.trim()) || simpleUuidPattern.test(text.trim());
+  };
+
   // 🔹 Определяем, является ли сообщение только медиа-файлом
   const isMediaOnly = msg.media && !msg.text;
 
@@ -393,14 +435,22 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         </Button>
       </div>
 
-      <div
-        className={[
-          "relative max-w-[70%] rounded-2xl px-4 py-3",
-          isMe
-            ? " py-3 text-black bg-[#E7FFDB]"
-            : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-md border border-gray-200 dark:border-gray-700 order-2",
-        ].join(" ")}
+      <ContextMenu 
+        menuItems={[
+          { label: 'Ответить', action: handleContextReply },
+          { label: 'Удалить', action: handleContextDelete },
+          { label: 'Переслать', action: handleContextForward },
+          { label: 'Копировать', action: handleContextCopy, disabled: !msg.text }
+        ]}
       >
+        <div
+          className={[
+            "relative max-w-[70%] rounded-2xl px-4 py-3",
+            isMe
+              ? " py-3 text-black bg-[#E7FFDB]"
+              : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-md border border-gray-200 dark:border-gray-700 order-2",
+          ].join(" ")}
+        >
         {/* 🔹 Дополнительное меню с тремя точками */}
         <div className={`absolute top-2 ${isMe ? 'left-2' : 'right-2'} opacity-0 group-hover:opacity-100 transition-opacity duration-200`}>
           <DropdownMenu open={showMenu} onOpenChange={setShowMenu}>
@@ -464,7 +514,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         {renderMedia()}
         
         {/* 🔹 Текст сообщения */}
-        {msg.text && (
+        {msg.text && !isFileNameOnly(msg.text) && (
           <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
               <>
                 {msg.text}
@@ -493,6 +543,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
             ))}
         </div>
       </div>
+      </ContextMenu>
 
       {/* Диалог подтверждения удаления */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
