@@ -57,9 +57,11 @@ function ChatContent() {
               WhatsApp Web
             </h1>
             
-            <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
+            <p className="text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
               Выберите чат из списка слева, чтобы начать общение.
             </p>
+
+
 
             {/* Features */}
             <div className="grid grid-cols-2 gap-4 text-sm text-gray-400 dark:text-gray-500">

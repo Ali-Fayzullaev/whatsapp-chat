@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Chat } from "./types";
 import { HeaderMenu } from "./menus";
+import { WebSocketConnectionStatus } from "../WebSocketConnectionStatus";
 import { useState } from "react";
 
 const formatTime = (timestamp: string) => {
@@ -142,8 +143,11 @@ export function Sidebar({
               <Menu className="h-5 w-5" />
             </AvatarFallback>
           </Avatar>
-          <div className="text-lg font-semibold text-gray-900 dark:text-white">
-            Чаты
+          <div className="flex flex-col">
+            <div className="text-lg font-semibold text-gray-900 dark:text-white">
+              Чаты
+            </div>
+            <WebSocketConnectionStatus />
           </div>
         </div>
         <div className="flex items-center gap-2">

@@ -42,6 +42,7 @@ import {
   TooltipContent,
   TooltipTrigger 
 } from "@/components/ui/tooltip";
+import { formatMessageTime } from "@/utils/dateFormat";
 
 interface MessageBubbleProps {
   msg: Message;
@@ -492,15 +493,14 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
           month: '2-digit',
           day: '2-digit',
           hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
+          minute: '2-digit'
         });
         parts.push(`Дата: ${formatted}`);
       } catch (error) {
-        parts.push(`Время: ${msg.time}`);
+        parts.push(`Время: ${formatMessageTime(msg.timestamp || msg.time)}`);
       }
     } else {
-      parts.push(`Время: ${msg.time}`);
+      parts.push(`Время: ${formatMessageTime(msg.time)}`);
     }
     
     // Платформа и направление
@@ -694,7 +694,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                   <div className={`flex items-center gap-1 text-[11px] mt-1 justify-end ${
                     isMe ? "text-gray-600" : "text-gray-500"
                   }`}>
-                    <span>{msg.time}</span>
+                    <span>{msg.timestamp ? formatMessageTime(msg.timestamp) : msg.time}</span>
                     {isMe && (
                       msg.pending ? (
                         <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />

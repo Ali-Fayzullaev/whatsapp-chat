@@ -114,8 +114,8 @@ class ApiConfig {
 
   // 🔹 МЕТОД ДЛЯ ПОЛУЧЕНИЯ WEBSOCKET URL
   getWebSocketUrl(): string {
-    // Преобразуем HTTP URL в WebSocket URL
-    return this.baseUrl.replace(/^https?/, 'wss') + '/ws';
+    // Возвращаем правильный URL как было в оригинальном запросе
+    return 'wss://socket.eldor.kz/api/ws';
   }
 
   // 🔹 МЕТОД ДЛЯ ПОЛУЧЕНИЯ WEBSOCKET URL С ТОКЕНОМ

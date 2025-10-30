@@ -1,11 +1,11 @@
 // src/config/features.ts
 export const FEATURES = {
-  // Отключаем WebSocket так как сервер его не поддерживает
-  WEBSOCKET_ENABLED: false,
+  // Включаем WebSocket для работы в реальном времени
+  WEBSOCKET_ENABLED: true,
   
-  // Интервал обновления сообщений в HTTP режиме (мс)
-  HTTP_POLLING_INTERVAL: 5000,
+  // Интервал обновления сообщений в HTTP режиме (мс) - fallback
+  HTTP_POLLING_INTERVAL: 30000,
   
   // Показывать ли уведомления о режиме работы
-  SHOW_CONNECTION_STATUS: false,
+  SHOW_CONNECTION_STATUS: true,
 } as const;

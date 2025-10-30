@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { useDeleteChat } from "@/hooks/useDeleteChat";
 import { useRouter } from "next/navigation";
+import { useWebSocket } from "@/providers/WebSocketProvider";
 import type { Chat } from "./types";
 
 interface ChatHeaderProps {
@@ -40,6 +41,7 @@ export  function ChatHeader({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { deleteChat, loading: deleteLoading } = useDeleteChat();
   const router = useRouter();
+  const { isConnected, connectionState } = useWebSocket();
 
   const handleDeleteChat = async () => {
     const success = await deleteChat(chatId);
@@ -55,8 +57,19 @@ export  function ChatHeader({
   };
   
   const getDisplayName = () => {
-    if (chat?.lastMessage.sender.name) {
-      return typeof chat.lastMessage.sender.name === "string" ? chat.lastMessage.sender.name : chat.lastMessage.sender.name;
+    // Безопасная проверка имени отправителя
+    if (chat?.lastMessage?.sender?.name) {
+      return chat.lastMessage.sender.name;
+    }
+
+    // Если есть название чата
+    if (chat?.name) {
+      return chat.name;
+    }
+
+    // Если есть номер телефона чата
+    if (chat?.phone) {
+      return chat.phone;
     }
 
     // Если это временный чат
@@ -76,7 +89,7 @@ export  function ChatHeader({
   // Функция для получения статуса (онлайн/оффлайн)
   const getStatus = () => {
     if (chatId.startsWith("temp:")) {
-      return "Временный чат";
+      return "нажмите, чтобы начать чат";
     }
 
     if (chat?.lastSeen) {
@@ -85,7 +98,7 @@ export  function ChatHeader({
       )}`;
     }
 
-    return "WhatsApp";
+    return "онлайн";
   };
 
   // Функция для получения аватара
@@ -135,7 +148,7 @@ export  function ChatHeader({
             {getDisplayName()}
           </div>
           <div className="text-[13px] text-green-600 dark:text-green-400 truncate font-medium">
-            {chatId.startsWith("temp:") ? "нажмите, чтобы начать чат" : "онлайн"}
+            {getStatus()}
           </div>
         </div>
 

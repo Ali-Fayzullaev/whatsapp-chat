@@ -27,6 +27,7 @@ import {
 import { tokenStorage } from "@/lib/token-storage";
 import { useToast } from "@/components/ui/toast";
 import { ApiClient } from "@/lib/api-client";
+import { formatChatTime } from "@/utils/dateFormat";
 import type { Chat } from "@/components/chat/types";
 
 // Мемоизированный компонент чата
@@ -75,7 +76,7 @@ const ChatItem = memo(({
             {chat.name}
           </h3>
           <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2 font-medium">
-            {chat.time}
+            {chat.time ? formatChatTime(chat.time) : ''}
           </span>
         </div>
         

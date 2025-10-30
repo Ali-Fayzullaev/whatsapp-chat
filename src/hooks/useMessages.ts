@@ -1,8 +1,10 @@
 // src/hooks/useMessages.ts
 "use client";
-import { useState, useEffect, useOptimistic, useTransition } from "react";
+import { useState, useEffect, useOptimistic, useTransition, useCallback } from "react";
 import { ApiClient } from "@/lib/api-client";
 import { useToast } from "@/components/ui/toast";
+import { useWebSocketChats } from "./useWebSocketChats";
+import { FEATURES } from "@/config/features";
 import type { Message } from "@/components/chat/types";
 
 interface OptimisticMessage extends Message {
@@ -16,6 +18,40 @@ export function useMessages(chatId: string | null) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const { addToast } = useToast();
+
+  // WebSocket обработчики для сообщений
+  const handleNewMessage = useCallback((receivedChatId: string, message: Message) => {
+    if (receivedChatId === chatId) {
+      startTransition(() => {
+        setMessages(prev => {
+          // Проверяем, не существует ли уже такое сообщение
+          const exists = prev.some(msg => msg.id === message.id || msg.id_message === message.id_message);
+          if (exists) {
+            return prev;
+          }
+          
+          const updated = [...prev, message].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+          return updated;
+        });
+      });
+    }
+  }, [chatId]);
+
+  const handleMessageUpdated = useCallback((receivedChatId: string, message: Message) => {
+    if (receivedChatId === chatId) {
+      startTransition(() => {
+        setMessages(prev => prev.map(msg => 
+          msg.id === message.id ? { ...msg, ...message } : msg
+        ));
+      });
+    }
+  }, [chatId]);
+
+  // Подключаем WebSocket для сообщений
+  const { isConnected } = useWebSocketChats({
+    onNewMessage: handleNewMessage,
+    onMessageUpdated: handleMessageUpdated,
+  });
 
   // Оптимистичные обновления для мгновенного отображения сообщений
   const [optimisticMessages, addOptimisticMessage] = useOptimistic(
@@ -327,6 +363,25 @@ export function useMessages(chatId: string | null) {
       setLoading(false);
     }
   }, [chatId]);
+
+  // HTTP polling fallback для сообщений когда WebSocket не подключен
+  useEffect(() => {
+    if (!chatId || chatId.startsWith("temp:")) return;
+    
+    if (!FEATURES.WEBSOCKET_ENABLED || !isConnected) {
+      console.log("📡 Using HTTP polling for messages");
+      
+      const interval = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          loadMessages(chatId, true); // silent reload
+        }
+      }, FEATURES.HTTP_POLLING_INTERVAL);
+
+      return () => clearInterval(interval);
+    } else {
+      console.log("🔌 Using WebSocket for real-time message updates");
+    }
+  }, [chatId, isConnected]);
 
   return {
     messages: optimisticMessages,
