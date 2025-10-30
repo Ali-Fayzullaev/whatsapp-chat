@@ -136,10 +136,6 @@ export  function ChatHeader({
               </AvatarFallback>
             )}
           </Avatar>
-          {/* Индикатор онлайн */}
-          {!chatId.startsWith("temp:") && (
-            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></div>
-          )}
         </div>
 
         {/* Информация о чате */}
@@ -147,31 +143,10 @@ export  function ChatHeader({
           <div className="font-medium text-[16px] text-gray-900 dark:text-white truncate">
             {getDisplayName()}
           </div>
-          <div className="text-[13px] text-green-600 dark:text-green-400 truncate font-medium">
-            {getStatus()}
-          </div>
         </div>
 
         {/* Кнопки действий */}
         <div className="flex items-center gap-1">
-          {/* Кнопка видеозвонка */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-10 w-10 p-0 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
-          >
-            <Video className="h-5 w-5" />
-          </Button>
-
-          {/* Кнопка голосового звонка */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-10 w-10 p-0 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
-          >
-            <Phone className="h-5 w-5" />
-          </Button>
-
           {/* Меню дополнительных действий */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

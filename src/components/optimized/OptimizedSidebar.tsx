@@ -64,10 +64,6 @@ const ChatItem = memo(({
             {chat.avatarFallback}
           </AvatarFallback>
         </Avatar>
-        {/* Индикатор онлайн статуса */}
-        {chat.id !== "temp" && (
-          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-900 rounded-full"></div>
-        )}
       </div>
 
       <div className="flex-1 min-w-0">

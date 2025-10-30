@@ -569,16 +569,6 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
 
   return (
     <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-2 sm:mb-3 group ${isReplying ? 'bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 -m-2' : ''}`}>
-      
-      {/* Аватар для входящих сообщений */}
-      {!isMe && (
-        <div className="flex-shrink-0 mr-2 sm:mr-3">
-          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium text-white shadow-md">
-            {msg.sender?.name ? msg.sender.name.charAt(0).toUpperCase() : 'U'}
-          </div>
-        </div>
-      )}
-
       {/* Контейнер сообщения */}
       <div className={`flex flex-col max-w-[90%] sm:max-w-[80%] md:max-w-[70%] lg:max-w-[60%] ${isMe ? 'items-end' : 'items-start'} min-w-0`}>
         
