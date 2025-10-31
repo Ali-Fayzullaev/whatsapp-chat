@@ -83,7 +83,6 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
     setShowMenu(false);
   };
   const confirmDelete = () => {
-    console.log(`🗑️ Delete confirmed for message: ${msg.id} (remote: ${deleteRemote})`);
     if (onDelete) {
       onDelete(msg.id, deleteRemote);
     } else {
@@ -265,17 +264,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
     if (!msg.media) return null;
     const mediaType = getFileTypeFromMessage(msg);
     const displayFileName = getDisplayFileName();
-    // 🔹 Добавляем логирование для отладки
-    if (msg.media.name?.includes('.mp4') || msg.media.url?.includes('.mp4')) {
-      console.log('🎥 Video media detected:', {
-        name: msg.media.name,
-        url: msg.media.url,
-        type: msg.media.type,
-        mime: msg.media.mime,
-        detectedType: mediaType,
-        displayFileName
-      });
-    }
+
     switch (mediaType) {
       case 'image':
         return (
@@ -525,7 +514,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                   overflowWrap: 'anywhere',
                   hyphens: 'auto'
                 }}
-                onMouseEnter={() => console.log('🐭 Mouse enter на сообщение', msg.id)}
+                onMouseEnter={() => {}}
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
                 onTouchMove={handleTouchMove}
@@ -538,7 +527,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-                        onClick={() => console.log("🔘 Dropdown menu trigger clicked for message:", msg.id)}
+                        onClick={() => {}}
                       >
                         <MoreHorizontal className="h-3 w-3" />
                       </Button>

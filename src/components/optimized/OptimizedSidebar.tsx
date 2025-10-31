@@ -29,7 +29,6 @@ import { useToast } from "@/components/ui/toast";
 import { ApiClient } from "@/lib/api-client";
 import { formatChatTime } from "@/utils/dateFormat";
 import type { Chat } from "@/components/chat/types";
-import { WebSocketConnectionStatus } from "../WebSocketConnectionStatus";
 
 // Мемоизированный компонент чата
 const ChatItem = memo(({ 
@@ -250,7 +249,7 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
           </div>
           <div className="flex flex-col">
             <h1 className="font-medium text-[19px]">WhatsApp</h1>
-            <WebSocketConnectionStatus />
+            {/* <WebSocketConnectionStatus /> */}
           </div>
         </div>
         <div className="flex gap-1">

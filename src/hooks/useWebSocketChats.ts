@@ -47,13 +47,7 @@ export function useWebSocketChats({
         case 'message.updated':
           // Если есть messageItem, обрабатываем как новое сообщение
           if (chatId && messageItem && onNewMessage) {
-            console.log("📦 Ищем данные ответа в:", {
-              reply_to: messageItem.reply_to,
-              replyTo: messageItem.replyTo, 
-              quoted: messageItem.quoted,
-              contextInfo: messageItem.contextInfo,
-              quotedMessage: messageItem.quotedMessage
-            });
+
             // Расширенная обработка ответов - проверяем разные возможные поля
             let replyTo: Message['replyTo'] = undefined;
             if (messageItem.reply_to || messageItem.replyTo || messageItem.quoted || 
