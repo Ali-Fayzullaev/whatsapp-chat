@@ -31,6 +31,7 @@ export interface Message {
     name?: string;
     size?: number;
     mime?: string;
+    duration?: number; // Длительность в секундах для аудио/видео
   };
 
   
@@ -41,6 +42,7 @@ export interface Message {
     media?: {
       type: "image" | "video" | "document" | "audio";
       name?: string;
+      duration?: number; // Длительность для аудио/видео
     };
   };
 }

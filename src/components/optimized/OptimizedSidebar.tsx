@@ -112,13 +112,13 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
   const { addToast } = useToast();
   const router = useRouter();
 
-  // Дебаунс для поиска
+  // Дебаунс для поиска (2.5 секунды задержки)
   useEffect(() => {
     const timer = setTimeout(() => {
       if (query.trim()) {
         searchChats(query.trim());
       }
-    }, 300); // 300ms задержка
+    }, 2500); // 2.5 секунды задержка
 
     return () => clearTimeout(timer);
   }, [query, searchChats]);

@@ -17,6 +17,7 @@ import {
   Forward,
   Copy
 } from "lucide-react";
+import { VoiceMessage } from "./VoiceMessage";
 import type { Message } from "./types";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
@@ -319,21 +320,12 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         );
       case 'audio':
         return (
-          <div className="mb-3 p-3 sm:p-4 bg-gray-100 dark:bg-gray-800 rounded-lg max-w-[280px] sm:max-w-md w-full">
-            <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
-              <div className="p-1.5 sm:p-2 bg-blue-500 rounded-full">
-                <Mic2Icon className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-xs sm:text-sm text-gray-700 dark:text-gray-300">
-                  Аудиосообщение
-                </div>
-              </div>
-            </div>
-            <audio controls className="w-full h-8 sm:h-10">
-              <source src={msg.media.url} type={msg.media.mime} />
-              Ваш браузер не поддерживает аудио.
-            </audio>
+          <div className="mb-3">
+            <VoiceMessage 
+              audioUrl={msg.media.url}
+              duration={msg.media.duration || 0}
+              className="shadow-sm"
+            />
           </div>
         );
       case 'document':

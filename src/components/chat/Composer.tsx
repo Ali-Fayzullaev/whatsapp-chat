@@ -8,12 +8,14 @@ import { useRef, useEffect, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import type { ReplyMessage } from "./types";
+import { VoiceRecorder } from "./VoiceRecorder";
 
 interface ComposerProps {
   draft: string;
   setDraft: (draft: string) => void;
   onSend: (text: string, replyTo?: ReplyMessage) => void;
   onFileSelect: (file: File) => void;
+  onVoiceSend: (audioBlob: Blob, duration: number, replyTo?: ReplyMessage) => void;
   disabled?: boolean;
   placeholder?: string;
   replyingTo?: ReplyMessage | null;
@@ -25,6 +27,7 @@ export function Composer({
   setDraft,
   onSend,
   onFileSelect,
+  onVoiceSend,
   disabled,
   placeholder = "Введите сообщение",
   replyingTo,
@@ -33,6 +36,7 @@ export function Composer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
 
   const handleSubmit = () => {
     const text = draft.trim();
@@ -74,6 +78,19 @@ export function Composer({
       onFileSelect(file);
       e.target.value = "";
     }
+  };
+
+  const handleVoiceSend = (audioBlob: Blob, duration: number) => {
+    onVoiceSend(audioBlob, duration, replyingTo || undefined);
+    setIsVoiceMode(false);
+  };
+
+  const handleVoiceCancel = () => {
+    setIsVoiceMode(false);
+  };
+
+  const startVoiceRecording = () => {
+    setIsVoiceMode(true);
   };
 
   useEffect(() => {
@@ -119,89 +136,98 @@ export function Composer({
       )}
 
       <div className="p-3">
-        <div className="flex items-end gap-2">
-        {/* Кнопка эмодзи */}
-        <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
-          <PopoverTrigger asChild>
+        {/* Режим записи голосового сообщения */}
+        {isVoiceMode ? (
+          <VoiceRecorder
+            onSendVoice={handleVoiceSend}
+            onCancel={handleVoiceCancel}
+          />
+        ) : (
+          /* Обычный режим ввода */
+          <div className="flex items-end gap-2">
+            {/* Кнопка эмодзи */}
+            <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 sm:h-10 sm:w-10 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full flex-shrink-0"
+                  disabled={disabled}
+                >
+                  <Smile className="h-4 w-4 sm:h-5 sm:w-5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent 
+                className="p-0 border-0 shadow-xl rounded-2xl overflow-hidden"
+                align="start"
+                side="top"
+              >
+                <EmojiPicker
+                  onEmojiClick={handleEmojiSelect}
+                  theme={Theme.AUTO}
+                  height={400}
+                  width={320}
+                  searchDisabled={false}
+                  skinTonesDisabled={false}
+                  previewConfig={{ showPreview: false }}
+                />
+              </PopoverContent>
+            </Popover>
+
+            {/* Кнопка прикрепления файла */}
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 sm:h-10 sm:w-10 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full flex-shrink-0"
+              onClick={() => fileInputRef.current?.click()}
               disabled={disabled}
+              className="h-8 w-8 sm:h-10 sm:w-10 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full flex-shrink-0"
             >
-              <Smile className="h-4 w-4 sm:h-5 sm:w-5" />
+              <Paperclip className="h-4 w-4 sm:h-5 sm:w-5" />
             </Button>
-          </PopoverTrigger>
-          <PopoverContent 
-            className="p-0 border-0 shadow-xl rounded-2xl overflow-hidden"
-            align="start"
-            side="top"
-          >
-            <EmojiPicker
-              onEmojiClick={handleEmojiSelect}
-              theme={Theme.AUTO}
-              height={400}
-              width={320}
-              searchDisabled={false}
-              skinTonesDisabled={false}
-              previewConfig={{ showPreview: false }}
+
+            {/* Поле ввода */}
+            <div className="flex-1 relative">
+              <Textarea
+                ref={textareaRef}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={placeholder}
+                disabled={disabled}
+                className="min-h-[36px] sm:min-h-[44px] max-h-[100px] sm:max-h-[120px] py-2 sm:py-3 px-3 sm:px-4 resize-none rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:border-green-500 pr-10 sm:pr-12 text-sm sm:text-base text-gray-900 dark:text-gray-100"
+                rows={1}
+              />
+            </div>
+
+            {/* Кнопка отправки/микрофона */}
+            <Button
+              onClick={draft.trim() ? handleSubmit : startVoiceRecording}
+              disabled={disabled}
+              size="icon"
+              className={`h-8 w-8 sm:h-10 sm:w-10 rounded-full flex-shrink-0 transition-all ${
+                draft.trim() 
+                  ? "bg-green-500 hover:bg-green-600 text-white" 
+                  : "bg-gray-300 dark:bg-gray-600 text-gray-500 hover:bg-gray-400 dark:hover:bg-gray-500"
+              }`}
+            >
+              {draft.trim() ? (
+                <Send className="h-3 w-3 sm:h-5 sm:w-5" />
+              ) : (
+                <Mic className="h-3 w-3 sm:h-5 sm:w-5" />
+              )}
+            </Button>
+
+            {/* Скрытый input для файлов */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+              multiple={false}
+              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
             />
-          </PopoverContent>
-        </Popover>
-
-        {/* Кнопка прикрепления файла */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled}
-          className="h-8 w-8 sm:h-10 sm:w-10 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full flex-shrink-0"
-        >
-          <Paperclip className="h-4 w-4 sm:h-5 sm:w-5" />
-        </Button>
-
-        {/* Поле ввода */}
-        <div className="flex-1 relative">
-          <Textarea
-            ref={textareaRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            disabled={disabled}
-            className="min-h-[36px] sm:min-h-[44px] max-h-[100px] sm:max-h-[120px] py-2 sm:py-3 px-3 sm:px-4 resize-none rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-700 border-0 focus-visible:ring-2 focus-visible:ring-green-500 pr-10 sm:pr-12 text-sm sm:text-base"
-            rows={1}
-          />
-        </div>
-
-        {/* Кнопка отправки/микрофона */}
-        <Button
-          onClick={draft.trim() ? handleSubmit : () => {}}
-          disabled={disabled}
-          size="icon"
-          className={`h-8 w-8 sm:h-10 sm:w-10 rounded-full flex-shrink-0 transition-all ${
-            draft.trim() 
-              ? "bg-green-500 hover:bg-green-600 text-white" 
-              : "bg-gray-300 dark:bg-gray-600 text-gray-500 hover:bg-gray-400 dark:hover:bg-gray-500"
-          }`}
-        >
-          {draft.trim() ? (
-            <Send className="h-3 w-3 sm:h-5 sm:w-5" />
-          ) : (
-            <Mic className="h-3 w-3 sm:h-5 sm:w-5" />
-          )}
-        </Button>
-
-        {/* Скрытый input для файлов */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          className="hidden"
-          multiple={false}
-          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
-        />
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

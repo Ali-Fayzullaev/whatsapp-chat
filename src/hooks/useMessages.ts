@@ -356,6 +356,117 @@ export function useMessages(chatId: string | null) {
     } else {
     }
   }, [chatId, isConnected]);
+  // Отправка голосового сообщения
+  const sendVoiceMessage = async (audioBlob: Blob, duration: number, replyTo?: any) => {
+    if (!chatId) return;
+
+    const tempId = crypto.randomUUID();
+    const now = Date.now();
+    
+    // Создаем файл из Blob
+    const audioFile = new File([audioBlob], `voice_${Date.now()}.webm`, {
+      type: 'audio/webm;codecs=opus'
+    });
+
+    // Создаем оптимистичное голосовое сообщение
+    const optimisticMsg: OptimisticMessage = {
+      id: tempId,
+      chatId,
+      author: "me",
+      text: "",
+      time: new Date(now).toLocaleTimeString("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      createdAt: now,
+      status: "sent",
+      isRead: true,
+      pending: true,
+      media: {
+        url: URL.createObjectURL(audioBlob), // Временный URL для локального воспроизведения
+        type: 'audio',
+        name: audioFile.name,
+        size: audioBlob.size,
+        mime: audioFile.type,
+        duration: duration // Добавляем длительность
+      },
+      ...(replyTo && { replyTo })
+    };
+
+    // Добавляем оптимистично в transition
+    startTransition(() => {
+      addOptimisticMessage(optimisticMsg);
+    });
+
+    try {
+      // Загружаем аудио через API
+      const formData = new FormData();
+      formData.append('file', audioFile);
+      
+      const response = await fetch('/api/whatsapp/files/upload-file', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+      }
+      
+      const result = await response.json();
+      const mediaUrl = result.path ? `https://socket.eldor.kz${result.path}` : result.mediaUrl || result.url;
+      
+      // Обновляем оптимистичное сообщение с реальным URL
+      startTransition(() => {
+        setMessages(prev => prev.map(msg => 
+          msg.id === tempId 
+            ? { ...msg, media: { ...msg.media!, url: mediaUrl }, pending: false }
+            : msg
+        ));
+      });
+
+      // Отправляем через sendMediaMessage для совместимости с API
+      // (но не добавляем еще одно оптимистичное сообщение)
+      let actualChatId = chatId;
+      if (chatId.startsWith("temp:")) {
+        const phone = chatId.replace("temp:", "");
+        const apiPhone = `${phone}@c.us`;
+        const startResult = await ApiClient.startChat(apiPhone);
+        if (startResult?.chat_id) {
+          actualChatId = String(startResult.chat_id);
+        }
+      }
+
+      // Отправляем голосовое сообщение
+      await ApiClient.sendMediaMessage(actualChatId, mediaUrl, '', replyTo);
+      
+      // Перезагружаем сообщения
+      setTimeout(() => {
+        loadMessages(actualChatId, true);
+      }, 1000);
+
+    } catch (err) {
+      console.error("Voice message error:", err);
+      // Помечаем как неудачное
+      startTransition(() => {
+        setMessages(prev => prev.map(msg => 
+          msg.id === tempId 
+            ? { ...msg, status: "failed", pending: false }
+            : msg
+        ));
+      });
+      
+      let errorMessage = "Не удалось отправить голосовое сообщение";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      addToast({
+        type: "error", 
+        title: "Ошибка отправки голосового сообщения",
+        description: errorMessage
+      });
+    }
+  };
+
   // Обогащаем сообщения данными об ответах из кэша
   const enrichedMessages = optimisticMessages.map(msg => ({
     ...msg,
@@ -368,6 +479,7 @@ export function useMessages(chatId: string | null) {
     isPending,
     sendMessage,
     sendMediaMessage,
+    sendVoiceMessage,
     deleteMessage,
     loadMessages,
   };
