@@ -2,7 +2,6 @@
 import { apiConfig } from "./api-config";
 import { dataCache } from "./cache";
 import type { Chat, Message } from "@/components/chat/types";
-
 // Кэшированный fetch с автоматической инвалидацией
 async function cachedFetch<T>(
   url: string, 
@@ -13,12 +12,8 @@ async function cachedFetch<T>(
   // Проверяем кэш
   const cached = dataCache.get<T>(cacheKey);
   if (cached) {
-    console.log(`📦 Cache hit for ${cacheKey}`);
     return cached;
   }
-
-  console.log(`🌐 Fetching ${cacheKey}...`);
-  
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -27,47 +22,37 @@ async function cachedFetch<T>(
       ...options?.headers,
     },
   });
-
   if (!response.ok) {
     throw new Error(`API Error: ${response.status}`);
   }
-
   const data = await response.json();
-  
   // Сохраняем в кэш
   dataCache.set(cacheKey, data, ttl);
-  
   return data;
 }
-
 export class ApiClient {
   // Получение списка чатов с кэшированием
   static async getChats(search?: string): Promise<Chat[]> {
     // Формируем параметры запроса
     const params = new URLSearchParams();
     params.set('limit', '100'); // Устанавливаем лимит 100
-    
     if (search && search.trim()) {
       params.set('search', search.trim());
     }
-    
     const url = `/api/whatsapp/chats?${params.toString()}`;
     const cacheKey = search ? `chats_search_${search}` : 'chats';
-    
     const data = await cachedFetch<any[]>(
       url,
       cacheKey,
       { cache: "no-store" },
       search ? 10 * 1000 : 30 * 1000 // Меньше кэш для поиска
     );
-
     return data.map((raw: any, i: number) => {
       const rawId = raw?.chat_id || raw?.id;
       const id = rawId ? String(rawId) : `temp-${i}`;
       let phone = raw?.phone || raw?.id || raw?.chat_id || "";
       phone = String(phone).replace("@c.us", "");
       const name = phone || `Чат ${id}`;
-      
       const ts = typeof raw?.updated_at === "number"
         ? raw.updated_at * 1000
         : raw?.updated_at
@@ -77,7 +62,6 @@ export class ApiClient {
         : raw?.timestamp
         ? Date.parse(raw.timestamp)
         : Date.now();
-
       return {
         id,
         chat_id: raw?.chat_id || id,
@@ -96,20 +80,17 @@ export class ApiClient {
       };
     }).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
   }
-
   // Получение сообщений чата с кэшированием
   static async getChatMessages(chatId: string): Promise<Message[]> {
     if (chatId.startsWith("temp:")) {
       return [];
     }
-
     const data = await cachedFetch<any>(
       `/api/whatsapp/chats/${encodeURIComponent(chatId)}/messages`,
       `messages-${chatId}`,
       { cache: "no-store" },
       60 * 1000 // 1 минута кэш для сообщений
     );
-
     let messagesArray: any[] = [];
     if (Array.isArray(data)) {
       messagesArray = data;
@@ -118,23 +99,17 @@ export class ApiClient {
     } else if (data && typeof data === "object") {
       messagesArray = Object.values(data).filter(Array.isArray).flat();
     }
-
     const seenIds = new Set<string>();
     const messages: Message[] = [];
-
     messagesArray.forEach((msg: any, index: number) => {
       const baseId = msg.id_message || msg.id || msg.message_ref || msg._id || `msg-${index}-${Date.now()}`;
-      
       if (seenIds.has(baseId)) return;
       seenIds.add(baseId);
-
       const timestamp = msg.timestamp || msg.created_at || msg.date || Date.now();
       const ts = typeof timestamp === "number" ? timestamp * 1000 : 
                  typeof timestamp === "string" ? Date.parse(timestamp) : Date.now();
-
       const direction = msg.direction || msg.type || "in";
       const isFromMe = direction === "out" || msg.from_me === true;
-
       const message: Message = {
         id: baseId,
         chatId,
@@ -148,7 +123,6 @@ export class ApiClient {
         status: msg.status || "sent",
         isRead: true,
       };
-
       // Обработка медиа
       if (msg.media) {
         message.media = {
@@ -158,7 +132,6 @@ export class ApiClient {
           size: msg.media.size,
           mime: msg.media.mime,
         };
-        
         // Обновляем текст для медиа
         if (!message.text) {
           switch (message.media.type) {
@@ -169,22 +142,16 @@ export class ApiClient {
           }
         }
       }
-
       messages.push(message);
     });
-
     return messages.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
   }
-
   // Отправка сообщения
   static async sendMessage(chatId: string, text: string, replyTo?: any): Promise<any> {
     // Инвалидируем кэш сообщений для этого чата
     dataCache.invalidate(`messages-${chatId}`);
     dataCache.invalidate("chats");
-
     const replyId = replyTo?.id || replyTo;
-    console.log("📤 API: Отправляем сообщение с reply_to:", replyId);
-
     const response = await fetch(`/api/whatsapp/chats/${encodeURIComponent(chatId)}/send`, {
       method: "POST",
       headers: {
@@ -196,20 +163,16 @@ export class ApiClient {
         reply_to: replyId,
       }),
     });
-
     if (!response.ok) {
       throw new Error(`Send message error: ${response.status}`);
     }
-
     return response.json();
   }
-
   // Отправка медиа-сообщения
   static async sendMediaMessage(chatId: string, mediaUrl: string, caption?: string, replyTo?: any): Promise<any> {
     // Инвалидируем кэш сообщений для этого чата
     dataCache.invalidate(`messages-${chatId}`);
     dataCache.invalidate("chats");
-
     const response = await fetch(`/api/whatsapp/send-media-temp`, {
       method: "POST",
       headers: {
@@ -223,21 +186,17 @@ export class ApiClient {
         reply_to: replyTo?.id || replyTo,
       }),
     });
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Send media error response:', errorText);
       throw new Error(`Send media message error: ${response.status} - ${errorText}`);
     }
-
     return response.json();
   }
-
   // Удаление чата
   static async deleteChat(chatId: string): Promise<any> {
     dataCache.invalidate("chats");
     dataCache.invalidate(`messages-${chatId}`);
-
     const response = await fetch(`/api/whatsapp/chats/${encodeURIComponent(chatId)}/delete`, {
       method: "DELETE",
       headers: {
@@ -245,20 +204,16 @@ export class ApiClient {
         "Content-Type": "application/json",
       },
     });
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Delete chat error response:', errorText);
       throw new Error(`Delete chat error: ${response.status} - ${errorText}`);
     }
-
     return response.json();
   }
-
   // Создание нового чата
   static async startChat(phone: string): Promise<any> {
     dataCache.invalidate("chats");
-    
     const response = await fetch("/api/whatsapp/chats/start", {
       method: "POST",
       headers: {
@@ -267,7 +222,6 @@ export class ApiClient {
       },
       body: JSON.stringify({ phone }),
     });
-
     if (!response.ok) {
       // Пытаемся получить детали ошибки из ответа
       let errorMessage = `Start chat error: ${response.status}`;
@@ -285,27 +239,20 @@ export class ApiClient {
       } catch {
         // Если не удалось распарсить JSON ошибки, используем стандартное сообщение
       }
-      
       throw new Error(errorMessage);
     }
-
     const result = await response.json();
-    
     // Проверяем что результат содержит chat_id
     if (!result || typeof result !== 'object') {
       throw new Error("Получен некорректный ответ от сервера");
     }
-    
     return result;
   }
-
   // Удаление сообщения
   static async deleteMessage(chatId: string, messageId: string, remote = false): Promise<void> {
     dataCache.invalidate(`messages-${chatId}`);
-    
     const url = `/api/whatsapp/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`;
     const params = remote ? "?remote=true" : "";
-    
     const response = await fetch(url + params, {
       method: "DELETE",
       headers: {
@@ -313,7 +260,6 @@ export class ApiClient {
         "Content-Type": "application/json",
       },
     });
-
     if (!response.ok) {
       throw new Error(`Delete message error: ${response.status}`);
     }

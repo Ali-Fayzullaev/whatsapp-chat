@@ -190,7 +190,7 @@ export function Composer({
 
         {/* Кнопка отправки/микрофона */}
         <Button
-          onClick={draft.trim() ? handleSubmit : () => console.log("Start recording...")}
+          onClick={draft.trim() ? handleSubmit : () => {}}
           disabled={disabled}
           size="icon"
           className={`h-8 w-8 sm:h-10 sm:w-10 rounded-full flex-shrink-0 transition-all ${

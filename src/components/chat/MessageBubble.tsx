@@ -43,7 +43,6 @@ import {
   TooltipTrigger 
 } from "@/components/ui/tooltip";
 import { formatMessageTime } from "@/utils/dateFormat";
-
 interface MessageBubbleProps {
   msg: Message;
   onReply?: (message: Message) => void;
@@ -51,49 +50,38 @@ interface MessageBubbleProps {
   onDelete?: (messageId: string, remote?: boolean) => void;
   onEdit?: (messageId: string, newText: string) => Promise<void>; // Добавляем onEdit
 }
-
 export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: MessageBubbleProps) {
   const isMe = msg.author === "me";
   const [imageError, setImageError] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteRemote, setDeleteRemote] = useState(false);
-  
-
-  
   // Состояние для редактирования
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(msg.text);
   const [isEditLoading, setIsEditLoading] = useState(false);
-
   // Состояние для долгого нажатия на мобильных
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
-
   const handleDownload = (url: string, filename: string) => {
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
     link.click();
   };
-
   const handleReply = () => {
-    console.log("🔹 Reply button clicked for message:", msg.id);
     if (onReply) {
-      console.log("🔹 Calling onReply function with message:", msg);
       onReply(msg);
     } else {
       console.warn("🔹 onReply function is not provided");
     }
     setShowMenu(false);
   };
-
   const handleDelete = (remote: boolean = false) => {
     setDeleteRemote(remote);
     setShowDeleteDialog(true);
     setShowMenu(false);
   };
-
   const confirmDelete = () => {
     console.log(`🗑️ Delete confirmed for message: ${msg.id} (remote: ${deleteRemote})`);
     if (onDelete) {
@@ -103,20 +91,17 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
     }
     setShowDeleteDialog(false);
   };
-
   // Функции для редактирования
   const handleEdit = () => {
     setIsEditing(true);
     setEditText(msg.text);
     setShowMenu(false);
   };
-
   const handleSaveEdit = async () => {
     if (!onEdit || editText.trim() === msg.text) {
       setIsEditing(false);
       return;
     }
-
     setIsEditLoading(true);
     try {
       await onEdit(msg.id, editText.trim());
@@ -128,12 +113,10 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
       setIsEditLoading(false);
     }
   };
-
   const handleCancelEdit = () => {
     setIsEditing(false);
     setEditText(msg.text);
   };
-
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -142,56 +125,42 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
       handleCancelEdit();
     }
   };
-
   // Функции для контекстного меню
   const handleContextReply = () => {
-    console.log("🔹 Context Reply clicked for message:", msg.id);
     if (onReply) {
       onReply(msg);
     } else {
       console.warn("⚠️ onReply function not provided");
     }
   };
-
   const handleContextDeleteForMe = () => {
-    console.log("🗑️ Context Delete for me clicked for message:", msg.id);
     if (onDelete) {
       handleDelete(false); // Удалить для себя
     } else {
       console.warn("⚠️ onDelete function not provided");
     }
   };
-
   const handleContextDeleteForEveryone = () => {
-    console.log("🗑️ Context Delete for everyone clicked for message:", msg.id);
     if (onDelete) {
       handleDelete(true); // Удалить у всех
     } else {
       console.warn("⚠️ onDelete function not provided");
     }
   };
-
   const handleContextForward = () => {
-    console.log("📤 Context Forward clicked for message:", msg.id);
     // TODO: Реализовать функцию пересылки
-    console.log("Forward functionality not implemented yet");
   };
-
   const handleContextCopy = () => {
-    console.log("📋 Context Copy clicked for message:", msg.id);
     if (msg.text) {
       navigator.clipboard.writeText(msg.text).then(() => {
-        console.log("✅ Text copied to clipboard");
       }).catch(err => {
         console.error("❌ Failed to copy text:", err);
       });
     }
   };
-
   // Обработчики для долгого нажатия на мобильных
   const handleTouchStart = (e: React.TouchEvent) => {
     const timer = setTimeout(() => {
-      console.log('📱 Long press detected on mobile');
       setIsContextMenuOpen(true);
       // Вибрация если поддерживается
       if (navigator.vibrate) {
@@ -200,25 +169,21 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
     }, 500); // 500ms для долгого нажатия
     setLongPressTimer(timer);
   };
-
   const handleTouchEnd = () => {
     if (longPressTimer) {
       clearTimeout(longPressTimer);
       setLongPressTimer(null);
     }
   };
-
   const handleTouchMove = () => {
     if (longPressTimer) {
       clearTimeout(longPressTimer);
       setLongPressTimer(null);
     }
   };
-
   // Рендеринг сообщения, на которое отвечают (как в WhatsApp)
   const renderReply = () => {
     if (!msg.replyTo) return null;
-
     return (
       <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg border-l-4 border-blue-500">
         <div className="flex items-center gap-2 mb-1">
@@ -227,7 +192,6 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
             {msg.replyTo.author === "me" ? "Вы" : "Сообщение"}
           </span>
         </div>
-        
         <div className="text-sm text-gray-700 dark:text-gray-300">
           {msg.replyTo.media ? (
             <div className="flex items-center gap-1">
@@ -248,56 +212,45 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
       </div>
     );
   };
-
   // 🔹 Улучшенная функция определения типа файла
   const getFileTypeFromMessage = (msg: Message): string => {
     // 1. Проверяем указанный тип
     if (msg.media?.type && msg.media.type !== 'document') {
       return msg.media.type;
     }
-    
     // 2. Проверяем MIME-тип
     if (msg.media?.mime) {
       if (msg.media.mime.startsWith('image/')) return 'image';
       if (msg.media.mime.startsWith('video/')) return 'video';
       if (msg.media.mime.startsWith('audio/')) return 'audio';
     }
-    
     // 3. Проверяем расширение файла
     const fileName = msg.media?.name || msg.media?.url || '';
     const extension = fileName.split('.').pop()?.toLowerCase();
-    
     const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico'];
     const videoExtensions = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', '3gp', 'ogv'];
     const audioExtensions = ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'wma'];
-    
     if (imageExtensions.includes(extension || '')) return 'image';
     if (videoExtensions.includes(extension || '')) return 'video';
     if (audioExtensions.includes(extension || '')) return 'audio';
-    
     // 4. Особая логика для UUID файлов
     if (fileName.match(/^[a-f0-9-]+\.mp4$/i)) return 'video';
     if (fileName.match(/^[a-f0-9-]+\.(jpg|jpeg|png|gif|webp)$/i)) return 'image';
     if (fileName.match(/^[a-f0-9-]+\.(mp3|wav|ogg|aac)$/i)) return 'audio';
-    
     return 'document';
   };
-
   const getDisplayFileName = (): string => {
     // 1. Если есть нормальное имя файла - используем его
     if (msg.media?.name && msg.media.name !== msg.media.url && !msg.media.name.match(/^[a-f0-9-]+\.\w+$/i)) {
       return msg.media.name;
     }
-    
     // 2. Извлекаем имя из URL
     const fileName = msg.media?.url?.split('/').pop() || msg.media?.name || '';
     const fileType = getFileTypeFromMessage(msg);
-    
     // 3. Для UUID файлов создаем красивое имя
     if (fileName.match(/^[a-f0-9-]+\.\w+$/i)) {
       const extension = fileName.split('.').pop()?.toUpperCase();
       const timestamp = new Date().toLocaleDateString();
-      
       switch (fileType) {
         case 'image': return `Изображение.${extension}`;
         case 'video': return `Видео.${extension}`;
@@ -305,17 +258,13 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         default: return `Документ.${extension}`;
       }
     }
-    
     // 4. Возвращаем оригинальное имя или fallback
     return fileName || 'Файл';
   };
-
   const renderMedia = () => {
     if (!msg.media) return null;
-
     const mediaType = getFileTypeFromMessage(msg);
     const displayFileName = getDisplayFileName();
-    
     // 🔹 Добавляем логирование для отладки
     if (msg.media.name?.includes('.mp4') || msg.media.url?.includes('.mp4')) {
       console.log('🎥 Video media detected:', {
@@ -327,7 +276,6 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         displayFileName
       });
     }
-
     switch (mediaType) {
       case 'image':
         return (
@@ -352,7 +300,6 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
             )}
           </div>
         );
-      
       case 'video':
         return (
           <div className="mb-3 rounded-lg overflow-hidden bg-black">
@@ -367,12 +314,9 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                 <source src={msg.media.url} type={msg.media.mime || 'video/mp4'} />
                 Ваш браузер не поддерживает видео.
               </video>
-              
-
             </div>
           </div>
         );
-      
       case 'audio':
         return (
           <div className="mb-3 p-3 sm:p-4 bg-gray-100 dark:bg-gray-800 rounded-lg max-w-[280px] sm:max-w-md w-full">
@@ -392,13 +336,11 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
             </audio>
           </div>
         );
-      
       case 'document':
       default:
         const fileName = msg.media.name || msg.media.url;
         const isActuallyImage = fileName?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i) || 
                                msg.media.mime?.startsWith('image/');
-        
         if (isActuallyImage) {
           return (
             <div className="mb-3 rounded-lg overflow-hidden">
@@ -423,7 +365,6 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
             </div>
           );
         }
-        
         return (
           <div className="mb-3 flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-100 dark:bg-gray-800 rounded-lg max-w-[280px] sm:max-w-md">
             <div className="p-2 sm:p-3 bg-blue-500 rounded-lg">
@@ -452,23 +393,17 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
         );
     }
   };
-
   // 🔹 Проверяем, является ли текст только именем файла (UUID + расширение)
   const isFileNameOnly = (text: string): boolean => {
     if (!text || !msg.media) return false;
-    
     // Проверяем, является ли текст UUID именем файла
     const uuidFilePattern = /^📄\s*[a-f0-9-]+\.[a-zA-Z0-9]+$/i;
     const simpleUuidPattern = /^[a-f0-9-]+\.[a-zA-Z0-9]+$/i;
-    
     return uuidFilePattern.test(text.trim()) || simpleUuidPattern.test(text.trim());
   };
-
   // 🔹 Функция для форматирования информации о сообщении для tooltip
   const formatMessageInfo = (): string => {
     const parts: string[] = [];
-    
-    
     // Отправитель
     if (msg.sender?.name || msg.sender?.full_name) {
       const senderName = msg.sender.full_name || msg.sender.name || 'Неизвестный отправитель';
@@ -476,16 +411,13 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
     } else {
       parts.push(`Отправитель: ${msg.author === 'me' ? 'Вы' : 'Собеседник'}`);
     }
-    
     // User ID
     if (msg.sender?.user_id) {
       parts.push(`User ID: ${msg.sender.user_id}`);
     } else if (msg.sender?.id) {
       parts.push(`Sender ID: ${msg.sender.id}`);
     }
-    
     // Добавим ID сообщения для отладки
-    
     // Дата и время
     if (msg.timestamp) {
       try {
@@ -504,33 +436,26 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
     } else {
       parts.push(`Время: ${formatMessageTime(msg.time)}`);
     }
-    
     // Платформа и направление
     if (msg.platform) {
       parts.push(`Платформа: ${msg.platform}`);
     }
-    
     if (msg.direction) {
       const directionText = msg.direction === 'in' ? 'Входящее' : 'Исходящее';
       parts.push(`Направление: ${directionText}`);
     }
-    
     // ID сообщения
     if (msg.id_message) {
       parts.push(`ID сообщения: ${msg.id_message}`);
     }
-    
     // Всегда показываем хотя бы базовую информацию
     if (parts.length === 0) {
       parts.push('Информация о сообщении недоступна');
     }
-    
     return parts.join('\n');
   };
-
   // 🔹 Определяем, является ли сообщение только медиа-файлом
   const isMediaOnly = msg.media && !msg.text;
-
   // Общие пункты контекстного меню
   const menuItems = [
     { 
@@ -568,13 +493,10 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
       }
     ])
   ];
-
   return (
     <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-2 sm:mb-3 group ${isReplying ? 'bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 -m-2' : ''}`}>
       {/* Контейнер сообщения */}
       <div className={`flex flex-col max-w-[90%] sm:max-w-[80%] md:max-w-[70%] lg:max-w-[60%] ${isMe ? 'items-end' : 'items-start'} min-w-0`}>
-        
-
         {/* Десктопное контекстное меню */}
         <ContextMenu menuItems={menuItems}>
           {/* Мобильное контекстное меню */}
@@ -624,7 +546,6 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                     <DropdownMenuContent className="bg-white dark:bg-gray-800" align={isMe ? "start" : "end"}>
                       <DropdownMenuItem 
                         onClick={(e) => {
-                          console.log("🔘 DropdownMenuItem 'Ответить' clicked for message:", msg.id);
                           handleReply();
                         }}
                       >
@@ -664,15 +585,12 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-
                 {/* Контент сообщения */}
                 <div className="space-y-1 sm:space-y-2">
                   {/* Сообщение, на которое отвечаем */}
                   {renderReply()}
-                  
                   {/* Медиа */}
                   {renderMedia()}
-                  
                   {/* Текст сообщения */}
                   {msg.text && !isFileNameOnly(msg.text) && (
                     <div 
@@ -687,7 +605,6 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                       {msg.text.trim()}
                     </div>
                   )}
-                  
                   {/* Время и статус */}
                   <div className={`flex items-center gap-1 text-[11px] mt-1 justify-end ${
                     isMe ? "text-gray-600" : "text-gray-500"
@@ -723,7 +640,6 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
           </MobileContextMenu>
         </ContextMenu>
       </div>
-
       {/* Диалог подтверждения удаления */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent className="sm:max-w-md">

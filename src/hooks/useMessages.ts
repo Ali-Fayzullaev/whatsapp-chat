@@ -7,19 +7,16 @@ import { useWebSocketChats } from "./useWebSocketChats";
 import { useReplyCache } from "./useReplyCache";
 import { FEATURES } from "@/config/features";
 import type { Message } from "@/components/chat/types";
-
 interface OptimisticMessage extends Message {
   pending?: boolean;
   failed?: boolean;
 }
-
 export function useMessages(chatId: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const { addToast } = useToast();
-
   // WebSocket обработчики для сообщений
   const handleNewMessage = useCallback((receivedChatId: string, message: Message) => {
     if (receivedChatId === chatId) {
@@ -30,14 +27,12 @@ export function useMessages(chatId: string | null) {
           if (exists) {
             return prev;
           }
-          
           const updated = [...prev, message].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
           return updated;
         });
       });
     }
   }, [chatId]);
-
   const handleMessageUpdated = useCallback((receivedChatId: string, message: Message) => {
     if (receivedChatId === chatId) {
       startTransition(() => {
@@ -47,16 +42,13 @@ export function useMessages(chatId: string | null) {
       });
     }
   }, [chatId]);
-
   // Подключаем WebSocket для сообщений
   const { isConnected } = useWebSocketChats({
     onNewMessage: handleNewMessage,
     onMessageUpdated: handleMessageUpdated,
   });
-
   // Простое кэширование ответов
   const { cacheReply, getReply } = useReplyCache(chatId);
-
   // Оптимистичные обновления для мгновенного отображения сообщений
   const [optimisticMessages, addOptimisticMessage] = useOptimistic(
     messages,
@@ -65,13 +57,11 @@ export function useMessages(chatId: string | null) {
       if (state.some(msg => msg.id === newMessage.id)) {
         return state;
       }
-      
       return [...state, { ...newMessage, pending: true }].sort(
         (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)
       );
     }
   );
-
   // Загрузка сообщений чата
   const loadMessages = async (targetChatId: string, silent = false) => {
     if (!targetChatId || targetChatId.startsWith("temp:")) {
@@ -79,13 +69,10 @@ export function useMessages(chatId: string | null) {
       setLoading(false);
       return;
     }
-
     if (!silent) setLoading(true);
     setError(null);
-
     try {
       const messagesData = await ApiClient.getChatMessages(targetChatId);
-      
       startTransition(() => {
         // Убираем pending флаг у всех сообщений при перезагрузке
         const cleanedMessages = messagesData.map(msg => ({ 
@@ -102,14 +89,11 @@ export function useMessages(chatId: string | null) {
       if (!silent) setLoading(false);
     }
   };
-
   // Отправка медиа-сообщения
   const sendMediaMessage = async (file: File, mediaUrl: string, replyTo?: any) => {
     if (!chatId) return;
-
     const tempId = crypto.randomUUID();
     const now = Date.now();
-
     // Определяем тип медиа
     const getMediaType = (file: File) => {
       if (file.type.startsWith('image/')) return 'image';
@@ -117,7 +101,6 @@ export function useMessages(chatId: string | null) {
       if (file.type.startsWith('audio/')) return 'audio';
       return 'document';
     };
-
     // Создаем оптимистичное медиа-сообщение
     const optimisticMsg: OptimisticMessage = {
       id: tempId,
@@ -141,20 +124,16 @@ export function useMessages(chatId: string | null) {
       },
       ...(replyTo && { replyTo })
     };
-
     // Добавляем оптимистично в transition
     startTransition(() => {
       addOptimisticMessage(optimisticMsg);
     });
-
     try {
       let actualChatId = chatId;
-
       // Если это временный чат, создаем реальный
       if (chatId.startsWith("temp:")) {
         const phone = chatId.replace("temp:", "");
         const apiPhone = `${phone}@c.us`;
-        
         try {
           const startResult = await ApiClient.startChat(apiPhone);
           if (startResult?.chat_id) {
@@ -164,19 +143,16 @@ export function useMessages(chatId: string | null) {
           }
         } catch (startChatError) {
           console.error("Start chat error for media:", startChatError);
-          
           // Удаляем оптимистичное сообщение
           startTransition(() => {
             setMessages(prev => prev.filter(msg => msg.id !== tempId));
           });
-
           let errorMessage = "Не удалось создать чат для отправки медиа";
           if (startChatError instanceof Error) {
             if (startChatError.message.includes("422") || startChatError.message.includes("404")) {
               errorMessage = `Номер ${phone} не зарегистрирован в WhatsApp`;
             }
           }
-          
           addToast({
             type: "error",
             title: "Ошибка создания чата",
@@ -186,18 +162,14 @@ export function useMessages(chatId: string | null) {
           return;
         }
       }
-
       // Отправляем медиа через API
       await ApiClient.sendMediaMessage(actualChatId, mediaUrl, "", replyTo);
-
       // Перезагружаем сообщения чтобы получить реальное медиа-сообщение
       setTimeout(() => {
         loadMessages(actualChatId, true);
       }, 1000);
-
     } catch (err) {
       console.error("Send media message error:", err);
-      
       // Помечаем сообщение как неудачное
       startTransition(() => {
         setMessages(prev => prev.map(msg => 
@@ -206,7 +178,6 @@ export function useMessages(chatId: string | null) {
             : msg
         ));
       });
-      
       let errorMessage = "Не удалось отправить медиафайл";
       if (err instanceof Error) {
         errorMessage = err.message;
@@ -218,14 +189,11 @@ export function useMessages(chatId: string | null) {
       });
     }
   };
-
   // Отправка сообщения с оптимистичным обновлением
   const sendMessage = async (text: string, replyTo?: any) => {
     if (!chatId || !text.trim()) return;
-
     const tempId = crypto.randomUUID();
     const now = Date.now();
-
     // Создаем оптимистичное сообщение с поддержкой ответов
     const optimisticMsg: OptimisticMessage = {
       id: tempId,
@@ -247,7 +215,6 @@ export function useMessages(chatId: string | null) {
         media: replyTo.media
       } : undefined,
     };
-
     // Кэшируем информацию об ответе если есть
     if (replyTo) {
       cacheReply(tempId, {
@@ -257,20 +224,16 @@ export function useMessages(chatId: string | null) {
         media: replyTo.media
       });
     }
-
     // Добавляем оптимистично в transition
     startTransition(() => {
       addOptimisticMessage(optimisticMsg);
     });
-
     try {
       let actualChatId = chatId;
-
       // Если это временный чат, создаем реальный
       if (chatId.startsWith("temp:")) {
         const phone = chatId.replace("temp:", "");
         const apiPhone = `${phone}@c.us`;
-        
         try {
           const startResult = await ApiClient.startChat(apiPhone);
           if (startResult?.chat_id) {
@@ -282,12 +245,10 @@ export function useMessages(chatId: string | null) {
         } catch (startChatError) {
           // Обрабатываем ошибки создания чата
           console.error("Start chat error:", startChatError);
-          
           // Удаляем оптимистичное сообщение и показываем ошибку
           startTransition(() => {
             setMessages(prev => prev.filter(msg => msg.id !== tempId));
           });
-
           // Определяем тип ошибки и показываем соответствующее сообщение
           let errorMessage = "Не удалось создать чат";
           if (startChatError instanceof Error) {
@@ -301,7 +262,6 @@ export function useMessages(chatId: string | null) {
               errorMessage = `Ошибка: ${startChatError.message}`;
             }
           }
-          
           // Показываем уведомление пользователю
           addToast({
             type: "error",
@@ -312,10 +272,8 @@ export function useMessages(chatId: string | null) {
           return;
         }
       }
-
       // Отправляем сообщение (ответы обрабатываются визуально через UI)
       const sendResult = await ApiClient.sendMessage(actualChatId, text, replyTo?.id);
-
       // Кэшируем ответ для реального ID сообщения если получили его
       if (sendResult?.id_message && replyTo) {
         cacheReply(sendResult.id_message, {
@@ -325,15 +283,12 @@ export function useMessages(chatId: string | null) {
           media: replyTo.media
         });
       }
-
       // Перезагружаем сообщения чтобы получить реальный ID
       setTimeout(() => {
         loadMessages(actualChatId, true);
       }, 1000);
-
     } catch (err) {
       console.error("Send message error:", err);
-      
       // Помечаем сообщение как неудачное
       startTransition(() => {
         setMessages(prev => prev.map(msg => 
@@ -342,7 +297,6 @@ export function useMessages(chatId: string | null) {
             : msg
         ));
       });
-      
       // Показываем ошибку отправки сообщения
       let errorMessage = "Не удалось отправить сообщение";
       if (err instanceof Error) {
@@ -355,11 +309,9 @@ export function useMessages(chatId: string | null) {
       });
     }
   };
-
   // Удаление сообщения
   const deleteMessage = async (messageId: string, remote = false) => {
     if (!chatId) return;
-
     // Оптимистично удаляем из UI
     const messageToDelete = messages.find(msg => msg.id === messageId);
     if (messageToDelete) {
@@ -367,12 +319,10 @@ export function useMessages(chatId: string | null) {
         setMessages(prev => prev.filter(msg => msg.id !== messageId));
       });
     }
-
     try {
       await ApiClient.deleteMessage(chatId, messageId, remote);
     } catch (err) {
       console.error("Delete message error:", err);
-      
       // Возвращаем сообщение если удаление не удалось
       if (messageToDelete) {
         startTransition(() => {
@@ -383,7 +333,6 @@ export function useMessages(chatId: string | null) {
       }
     }
   };
-
   // Загружаем сообщения при смене чата
   useEffect(() => {
     if (chatId) {
@@ -393,32 +342,24 @@ export function useMessages(chatId: string | null) {
       setLoading(false);
     }
   }, [chatId]);
-
   // HTTP polling fallback для сообщений когда WebSocket не подключен
   useEffect(() => {
     if (!chatId || chatId.startsWith("temp:")) return;
-    
     if (!FEATURES.WEBSOCKET_ENABLED || !isConnected) {
-      console.log("📡 Using HTTP polling for messages");
-      
       const interval = setInterval(() => {
         if (document.visibilityState === "visible") {
           loadMessages(chatId, true); // silent reload
         }
       }, FEATURES.HTTP_POLLING_INTERVAL);
-
       return () => clearInterval(interval);
     } else {
-      console.log("🔌 Using WebSocket for real-time message updates");
     }
   }, [chatId, isConnected]);
-
   // Обогащаем сообщения данными об ответах из кэша
   const enrichedMessages = optimisticMessages.map(msg => ({
     ...msg,
     replyTo: msg.replyTo || getReply(msg.id) || getReply(msg.id_message || '')
   }));
-
   return {
     messages: enrichedMessages,
     loading,

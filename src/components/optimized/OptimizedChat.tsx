@@ -12,9 +12,6 @@ import { useChats } from "@/hooks/useChats";
 import { useToast } from "@/components/ui/toast";
 import type { Message, ReplyMessage } from "@/components/chat/types";
 import { ArrowLeft, MessageCircleMore } from "lucide-react";
-
-
-
 const MemoizedMessageBubble = memo(MessageBubble, (prevProps, nextProps) => {
   return (
     prevProps.msg.id === nextProps.msg.id &&
@@ -26,12 +23,10 @@ const MemoizedMessageBubble = memo(MessageBubble, (prevProps, nextProps) => {
     JSON.stringify(prevProps.msg.replyTo) === JSON.stringify(nextProps.msg.replyTo)
   );
 });
-
 interface OptimizedChatProps {
   chatId: string | null;
   onBackToSidebar?: () => void;
 }
-
 export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   const [draft, setDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<ReplyMessage | null>(() => {
@@ -50,10 +45,8 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-
   const { chats } = useChats();
   const { messages, loading, sendMessage, sendMediaMessage, deleteMessage } = useMessages(chatId);
-
   // Сохранение состояния ответа в localStorage
   useEffect(() => {
     if (typeof window !== 'undefined' && chatId) {
@@ -65,7 +58,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
     }
   }, [replyingTo, chatId]);
   const { addToast } = useToast();
-
   const handleBackToSidebar = useCallback(() => {
     if (onBackToSidebar) {
       onBackToSidebar();
@@ -73,44 +65,33 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
       router.push("/chat");
     }
   }, [onBackToSidebar, router]);
-
   const selectedChat = chats.find(chat => chat.id === chatId);
   const isTempChat = chatId?.startsWith("temp:") ?? false;
-
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, []);
-
   const isNearBottom = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return true;
     return el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   }, []);
-
   useEffect(() => {
     if (isNearBottom()) {
       setTimeout(scrollToBottom, 100);
     }
   }, [messages, scrollToBottom, isNearBottom]);
-
   const handleSend = useCallback(async (text: string, replyTo?: ReplyMessage) => {
-
     if (!text.trim() || !chatId) return;
-
     const stick = isNearBottom();
-    
     startTransition(() => {
       sendMessage(text.trim(), replyTo).then(() => {
-        console.log("📤 Сообщение отправлено, сбрасываем replyingTo");
         setDraft("");
         setReplyingTo(null);
         if (stick) setTimeout(scrollToBottom, 50);
       });
     });
   }, [chatId, sendMessage, isNearBottom, scrollToBottom]);
-
   const handleReplyToMessage = useCallback((message: Message) => {
-    console.log("🔹 handleReplyToMessage вызвана с сообщением:", message);
     const replyData = {
       id: message.id,
       author: message.author,
@@ -120,33 +101,25 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
         name: message.media.name,
       } : undefined,
     };
-    console.log("🔹 Устанавливаем replyingTo:", replyData);
     setReplyingTo(replyData);
   }, []);
-
   const clearReplyingTo = useCallback(() => {
-    console.log("🔹 Принудительно очищаем replyingTo");
     setReplyingTo(null);
   }, []);
-
   const handleDeleteMessage = useCallback(async (messageId: string, remote = false) => {
     if (!chatId) return;
     await deleteMessage(messageId, remote);
   }, [chatId, deleteMessage]);
-
   const handleFileSelect = useCallback(async (file: File) => {
     if (!chatId) return;
-    
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('chatId', chatId);
-      
       const response = await fetch('/api/whatsapp/files/upload-image', {
         method: 'POST',
         body: formData,
       });
-      
       if (!response.ok) {
         const errorText = await response.text();
         addToast({
@@ -156,15 +129,12 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
         });
         return;
       }
-      
       const result = await response.json();
       const mediaUrl = result.path ? `https://socket.eldor.kz${result.path}` : result.mediaUrl || result.url;
-      
       startTransition(() => {
         sendMediaMessage(file, mediaUrl, replyingTo);
         setReplyingTo(null);
       });
-      
     } catch (error) {
       addToast({
         type: "error",
@@ -173,7 +143,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
       });
     }
   }, [chatId, sendMediaMessage, replyingTo]);
-
   if (loading && messages.length === 0) {
     return (
       <div className="flex flex-col h-full bg-white dark:bg-gray-900">
@@ -189,7 +158,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
             <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
           </div>
         </div>
-        
         <div 
           className="flex-1 p-4 space-y-4" 
           style={{ 
@@ -210,7 +178,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
             </div>
           ))}
         </div>
-        
         <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
           <div className="flex items-end gap-3">
             <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
@@ -221,7 +188,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
       </div>
     );
   }
-
   if (!chatId) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
@@ -240,7 +206,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
       </div>
     );
   }
-
   return (
     <TooltipProvider>
       <div className="flex flex-col h-full w-full bg-white dark:bg-gray-900">
@@ -250,7 +215,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
           onBack={handleBackToSidebar}
           showBackButton={true}
         />
-
       {isTempChat && (
         <div className="px-3 md:px-6 py-3 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800">
           <div className="flex items-start gap-3">
@@ -268,7 +232,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
           </div>
         </div>
       )}
-
         <ScrollArea
           className="flex-1 bg-[#ECE5DD] dark:bg-gray-900/50 bg-opacity-50 bg-whatsapp-pattern"
           style={{
@@ -314,7 +277,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
           <div ref={bottomRef} />
         </div>
       </ScrollArea>
-
       <div className="sticky bottom-0 z-10 bg-transparent">
         <Composer
           draft={draft}
@@ -328,7 +290,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
         />
       </div>
       </div>
-
     </TooltipProvider>
   );
 }
