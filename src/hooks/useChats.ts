@@ -100,7 +100,14 @@ export function useChats() {
       const chatsData = await ApiClient.getChats(search);
       
       startTransition(() => {
-        setChats(chatsData);
+        // Сортируем чаты по времени последнего обновления (новые сверху)
+        const sortedChats = chatsData.sort((a, b) => {
+          const timeA = a.updatedAt || new Date(a.time || 0).getTime() || 0;
+          const timeB = b.updatedAt || new Date(b.time || 0).getTime() || 0;
+          return timeB - timeA; // Новые сверху
+        });
+        
+        setChats(sortedChats);
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to load chats";

@@ -48,13 +48,16 @@ const ChatItem = memo(({
     <div
       onClick={handleClick}
       className={`
-        flex items-center gap-3 p-3 cursor-pointer transition-all duration-200
-        hover:bg-gray-50 dark:hover:bg-gray-800/50 active:bg-gray-100 dark:active:bg-gray-700/50
+        flex items-center gap-3 p-3 cursor-pointer 
+        transition-all duration-300 ease-out
+        hover:bg-gray-50 dark:hover:bg-gray-800/50 
+        active:bg-gray-100 dark:active:bg-gray-700/50
         ${isSelected ? 
-          "bg-gray-100 dark:bg-gray-800/70" : 
-          ""
+          "bg-gray-100 dark:bg-gray-800/70 transform scale-[0.99]" : 
+          "hover:transform hover:scale-[0.995]"
         }
         border-b border-gray-100/50 dark:border-gray-700/30
+        animate-in slide-in-from-top-2 duration-300
       `}
     >
       <div className="relative">
