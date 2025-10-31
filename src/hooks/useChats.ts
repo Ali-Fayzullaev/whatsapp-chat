@@ -34,8 +34,10 @@ export function useChats() {
 
   const handleNewMessage = useCallback((chatId: string, message: Message) => {
     // Добавляем в систему непрочитанных сообщений, если сообщение от собеседника
+    let isNewUnread = false;
     if (message.author === 'them' && message.id) {
       addUnreadMessage(message.id, chatId);
+      isNewUnread = true;
     }
     
     startTransition(() => {
@@ -45,8 +47,9 @@ export function useChats() {
         // Обновляем чат с новым сообщением
         const updated = prev.map(chat => {
           if (chat.id === chatId || chat.chat_id === chatId) {
-            // Получаем актуальное количество непрочитанных сообщений
-            const unreadCount = getUnreadCount(chatId);
+            // Получаем количество непрочитанных сообщений, учитывая новое
+            const currentUnread = chat.unread || 0;
+            const newUnreadCount = isNewUnread ? currentUnread + 1 : currentUnread;
             
             updatedChat = { 
               ...chat, 
@@ -58,7 +61,7 @@ export function useChats() {
                 id_message: message.id_message
               },
               time: message.timestamp || new Date().toISOString(),
-              unread: unreadCount,
+              unread: newUnreadCount,
               updatedAt: message.createdAt || Date.now()
             };
             return updatedChat;
@@ -119,15 +122,23 @@ export function useChats() {
       const chatsData = await ApiClient.getChats(search);
       
       startTransition(() => {
-        // Временно отключаем интеграцию с getUnreadCount для устранения цикла
-        // TODO: Добавить обратно после исправления циклических зависимостей
-        // const chatsWithUnread = chatsData.map(chat => ({
-        //   ...chat,
-        //   unread: getUnreadCount(chat.id || chat.chat_id)
-        // }));
+        // Добавляем счетчики непрочитанных сообщений к чатам
+        const chatsWithUnread = chatsData.map(chat => ({
+          ...chat,
+          unread: getUnreadCount(chat.id || chat.chat_id)
+        }));
         
-        // Сортируем чаты по времени последнего обновления (новые сверху)
-        const sortedChats = chatsData.sort((a, b) => {
+        // Сортируем чаты: сначала по непрочитанным, затем по времени последнего обновления
+        const sortedChats = chatsWithUnread.sort((a, b) => {
+          // Приоритет: чаты с непрочитанными сообщениями идут первыми
+          const aHasUnread = (a.unread ?? 0) > 0;
+          const bHasUnread = (b.unread ?? 0) > 0;
+          
+          if (aHasUnread !== bHasUnread) {
+            return bHasUnread ? 1 : -1; // Чаты с непрочитанными сначала
+          }
+          
+          // Если оба прочитаны или оба непрочитаны, сортируем по времени
           const timeA = a.updatedAt || new Date(a.time || 0).getTime() || 0;
           const timeB = b.updatedAt || new Date(b.time || 0).getTime() || 0;
           return timeB - timeA; // Новые сверху
@@ -142,7 +153,7 @@ export function useChats() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []); // Убрали getUnreadCount из зависимостей
+  }, [getUnreadCount]);
 
   // Функция поиска с дебаунсом
   const searchChats = useCallback(async (searchQuery: string) => {

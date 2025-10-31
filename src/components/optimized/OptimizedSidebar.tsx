@@ -29,6 +29,7 @@ import { useToast } from "@/components/ui/toast";
 import { ApiClient } from "@/lib/api-client";
 import { formatChatTime } from "@/utils/dateFormat";
 import type { Chat } from "@/components/chat/types";
+import { WebSocketConnectionStatus } from "../WebSocketConnectionStatus";
 
 // Мемоизированный компонент чата
 const ChatItem = memo(({ 
@@ -44,6 +45,13 @@ const ChatItem = memo(({
     onSelect(chat.id);
   }, [chat.id, onSelect]);
 
+  // Проверяем, является ли чат "свежим" (обновлен в последние 5 минут)
+  const isRecentlyUpdated = useMemo(() => {
+    if (!chat.updatedAt) return false;
+    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+    return chat.updatedAt > fiveMinutesAgo;
+  }, [chat.updatedAt]);
+
   return (
     <div
       onClick={handleClick}
@@ -55,6 +63,14 @@ const ChatItem = memo(({
         ${isSelected ? 
           "bg-gray-100 dark:bg-gray-800/70 transform scale-[0.99]" : 
           "hover:transform hover:scale-[0.995]"
+        }
+        ${(chat.unread ?? 0) > 0 ? 
+          "bg-green-50 dark:bg-green-900/10 border-l-4 border-l-green-500" : 
+          ""
+        }
+        ${isRecentlyUpdated && (chat.unread ?? 0) === 0 ? 
+          "bg-blue-50 dark:bg-blue-900/10 border-l-2 border-l-blue-400" : 
+          ""
         }
         border-b border-gray-100/50 dark:border-gray-700/30
         animate-in slide-in-from-top-2 duration-300
@@ -71,12 +87,19 @@ const ChatItem = memo(({
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-semibold text-[15px] truncate text-gray-900 dark:text-gray-100">
+          <h3 className={`text-[15px] truncate text-gray-900 dark:text-gray-100 ${
+            (chat.unread ?? 0) > 0 ? 'font-bold' : 'font-semibold'
+          }`}>
             {chat.name}
           </h3>
-          <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2 font-medium">
-            {chat.time ? formatChatTime(chat.time) : ''}
-          </span>
+          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+            {isRecentlyUpdated && (chat.unread ?? 0) === 0 && (
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+            )}
+            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+              {chat.time ? formatChatTime(chat.time) : ''}
+            </span>
+          </div>
         </div>
         
         <div className="flex items-center justify-between w-[300px]">
@@ -249,7 +272,7 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
           </div>
           <div className="flex flex-col">
             <h1 className="font-medium text-[19px]">WhatsApp</h1>
-            {/* <WebSocketConnectionStatus /> */}
+            <WebSocketConnectionStatus />
           </div>
         </div>
         <div className="flex gap-1">
