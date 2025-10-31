@@ -5,8 +5,10 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card } from './ui/card';
 import { apiConfig } from '@/lib/api-config';
+import { useWebSocket } from '@/providers/WebSocketProvider';
 
 export function TokenManager() {
+  const { startConnection } = useWebSocket();
   const [currentToken, setCurrentToken] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('auth_token') || '';
@@ -37,6 +39,9 @@ export function TokenManager() {
       setNewToken('');
       console.log('✅ Token updated');
       checkCurrentToken();
+      
+      // Запускаем WebSocket подключение после авторизации
+      startConnection();
     }
   };
 

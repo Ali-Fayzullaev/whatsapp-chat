@@ -15,6 +15,7 @@ interface WebSocketContextType {
   onMessage: (handler: (data: any) => void) => void;
   offMessage: (handler: (data: any) => void) => void;
   reconnect: () => void;
+  startConnection: () => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType>({
@@ -25,6 +26,7 @@ const WebSocketContext = createContext<WebSocketContextType>({
   onMessage: () => {},
   offMessage: () => {},
   reconnect: () => {},
+  startConnection: () => {},
 });
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
@@ -122,6 +124,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const connectWebSocket = useCallback(() => {
     if (!FEATURES.WEBSOCKET_ENABLED) {
       console.log('⚠️ WebSocket отключен в конфигурации');
+      setConnectionState('disconnected');
       return;
     }
 
@@ -129,8 +132,8 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     
     const token = localStorage.getItem('auth_token');
     if (!token) {
-      console.error("❌ Токен не найден в localStorage");
-      setConnectionState('error');
+      console.log("ℹ️ Токен авторизации не найден - WebSocket ожидает авторизации");
+      setConnectionState('disconnected');
       return;
     }
 
@@ -236,20 +239,46 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     connectWebSocket();
   }, [connectWebSocket]);
 
-  // Эффект для автоматического подключения при монтировании
+  // Эффект для отслеживания токена и автоматического подключения
   useEffect(() => {
-    if (FEATURES.WEBSOCKET_ENABLED) {
-      console.log("🚀 Инициализация WebSocket Provider");
-      shouldReconnectWsRef.current = true;
-      connectWebSocket();
-    } else {
+    if (!FEATURES.WEBSOCKET_ENABLED) {
       console.log("⚠️ WebSocket отключен в конфигурации");
+      return;
     }
+
+    console.log("🚀 Инициализация WebSocket Provider");
+    
+    // Функция для проверки токена и подключения
+    const checkTokenAndConnect = () => {
+      const token = localStorage.getItem('auth_token');
+      if (token && shouldReconnectWsRef.current) {
+        console.log("🔑 Токен найден, подключаем WebSocket");
+        connectWebSocket();
+      } else if (!token) {
+        console.log("⏳ Ожидаем авторизацию пользователя");
+        setConnectionState('disconnected');
+      }
+    };
+
+    // Проверяем токен при загрузке
+    checkTokenAndConnect();
+
+    // Отслеживаем изменения в localStorage (когда пользователь авторизуется)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'auth_token') {
+        console.log("🔄 Изменение токена авторизации");
+        checkTokenAndConnect();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    shouldReconnectWsRef.current = true;
 
     // Cleanup при размонтировании
     return () => {
       shouldReconnectWsRef.current = false;
       clearWsReconnectTimer();
+      window.removeEventListener('storage', handleStorageChange);
       
       if (wsConnectionRef.current) {
         wsConnectionRef.current.onclose = null;
@@ -259,6 +288,16 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     };
   }, [connectWebSocket, clearWsReconnectTimer]);
 
+  // Функция для запуска подключения после авторизации
+  const startConnection = useCallback(() => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      console.log("🚀 Запуск WebSocket соединения после авторизации");
+      shouldReconnectWsRef.current = true;
+      connectWebSocket();
+    }
+  }, [connectWebSocket]);
+
   const value: WebSocketContextType = {
     isConnected,
     lastMessage,
@@ -267,6 +306,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     onMessage,
     offMessage,
     reconnect,
+    startConnection,
   };
 
   return (

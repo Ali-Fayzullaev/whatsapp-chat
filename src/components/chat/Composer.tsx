@@ -8,14 +8,12 @@ import { useRef, useEffect, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import type { ReplyMessage } from "./types";
-import { VoiceRecorder } from "./VoiceRecorder";
 
 interface ComposerProps {
   draft: string;
   setDraft: (draft: string) => void;
   onSend: (text: string, replyTo?: ReplyMessage) => void;
   onFileSelect: (file: File) => void;
-  onVoiceSend: (audioBlob: Blob, duration: number, replyTo?: ReplyMessage) => void;
   disabled?: boolean;
   placeholder?: string;
   replyingTo?: ReplyMessage | null;
@@ -27,7 +25,6 @@ export function Composer({
   setDraft,
   onSend,
   onFileSelect,
-  onVoiceSend,
   disabled,
   placeholder = "Введите сообщение",
   replyingTo,
@@ -36,7 +33,6 @@ export function Composer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [isVoiceMode, setIsVoiceMode] = useState(false);
 
   const handleSubmit = () => {
     const text = draft.trim();
@@ -80,18 +76,7 @@ export function Composer({
     }
   };
 
-  const handleVoiceSend = (audioBlob: Blob, duration: number) => {
-    onVoiceSend(audioBlob, duration, replyingTo || undefined);
-    setIsVoiceMode(false);
-  };
 
-  const handleVoiceCancel = () => {
-    setIsVoiceMode(false);
-  };
-
-  const startVoiceRecording = () => {
-    setIsVoiceMode(true);
-  };
 
   useEffect(() => {
     if (replyingTo && textareaRef.current) {
@@ -136,15 +121,7 @@ export function Composer({
       )}
 
       <div className="p-3">
-        {/* Режим записи голосового сообщения */}
-        {isVoiceMode ? (
-          <VoiceRecorder
-            onSendVoice={handleVoiceSend}
-            onCancel={handleVoiceCancel}
-          />
-        ) : (
-          /* Обычный режим ввода */
-          <div className="flex items-end gap-2">
+        <div className="flex items-end gap-2">
             {/* Кнопка эмодзи */}
             <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
               <PopoverTrigger asChild>
@@ -199,22 +176,14 @@ export function Composer({
               />
             </div>
 
-            {/* Кнопка отправки/микрофона */}
+            {/* Кнопка отправки */}
             <Button
-              onClick={draft.trim() ? handleSubmit : startVoiceRecording}
-              disabled={disabled}
+              onClick={handleSubmit}
+              disabled={disabled || !draft.trim()}
               size="icon"
-              className={`h-8 w-8 sm:h-10 sm:w-10 rounded-full flex-shrink-0 transition-all ${
-                draft.trim() 
-                  ? "bg-green-500 hover:bg-green-600 text-white" 
-                  : "bg-gray-300 dark:bg-gray-600 text-gray-500 hover:bg-gray-400 dark:hover:bg-gray-500"
-              }`}
+              className="h-8 w-8 sm:h-10 sm:w-10 rounded-full flex-shrink-0 transition-all bg-green-500 hover:bg-green-600 text-white disabled:bg-gray-300 disabled:text-gray-500"
             >
-              {draft.trim() ? (
-                <Send className="h-3 w-3 sm:h-5 sm:w-5" />
-              ) : (
-                <Mic className="h-3 w-3 sm:h-5 sm:w-5" />
-              )}
+              <Send className="h-3 w-3 sm:h-5 sm:w-5" />
             </Button>
 
             {/* Скрытый input для файлов */}
@@ -227,7 +196,6 @@ export function Composer({
               accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
             />
           </div>
-        )}
       </div>
     </div>
   );

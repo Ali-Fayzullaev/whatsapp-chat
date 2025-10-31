@@ -46,7 +46,7 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const { chats } = useChats();
-  const { messages, loading, sendMessage, sendMediaMessage, sendVoiceMessage, deleteMessage } = useMessages(chatId);
+  const { messages, loading, sendMessage, sendMediaMessage, deleteMessage } = useMessages(chatId);
   // Сохранение состояния ответа в localStorage
   useEffect(() => {
     if (typeof window !== 'undefined' && chatId) {
@@ -168,18 +168,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
       });
     }
   }, [chatId, sendMediaMessage, replyingTo]);
-
-  const handleVoiceSend = useCallback(async (audioBlob: Blob, duration: number, replyTo?: ReplyMessage) => {
-    if (!chatId) return;
-    
-    const stick = isNearBottom();
-    startTransition(() => {
-      sendVoiceMessage(audioBlob, duration, replyTo).then(() => {
-        setReplyingTo(null);
-        if (stick) setTimeout(scrollToBottom, 50);
-      });
-    });
-  }, [chatId, sendVoiceMessage, isNearBottom, scrollToBottom]);
 
   if (loading && messages.length === 0) {
     return (
@@ -321,7 +309,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
           setDraft={setDraft}
           onSend={handleSend}
           onFileSelect={handleFileSelect}
-          onVoiceSend={handleVoiceSend}
           disabled={!chatId || isPending}
           placeholder={isPending ? "Отправка..." : "Введите сообщение..."}
           replyingTo={replyingTo}
