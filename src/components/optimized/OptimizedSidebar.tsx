@@ -1,6 +1,6 @@
 // src/components/optimized/OptimizedSidebar.tsx
 "use client";
-import { useState, useMemo, memo, useCallback } from "react";
+import { useState, useMemo, memo, useCallback, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -105,27 +105,36 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
   const [showNewChatDialog, setShowNewChatDialog] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState("");
   const [isCreatingChat, setIsCreatingChat] = useState(false);
-  const { chats, loading, isPending } = useChats();
+  const { chats, loading, isPending, searchChats } = useChats();
   const { addToast } = useToast();
   const router = useRouter();
 
-  // Фильтрация чатов с мемоизацией
-  const filteredChats = useMemo(() => {
-    if (!query.trim()) return chats;
+  // Дебаунс для поиска
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (query.trim()) {
+        searchChats(query.trim());
+      }
+    }, 300); // 300ms задержка
+
+    return () => clearTimeout(timer);
+  }, [query, searchChats]);
+
+  // Обработчик изменения поискового запроса
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setQuery(value);
     
-    const searchTerm = query.toLowerCase();
-    return chats.filter(chat => {
-      const lastMessageText = typeof chat.lastMessage === 'string' 
-        ? chat.lastMessage 
-        : chat.lastMessage?.text || "";
-      
-      return (
-        (chat.name ?? "").toLowerCase().includes(searchTerm) ||
-        (chat.phone ?? "").includes(searchTerm) ||
-        lastMessageText.toLowerCase().includes(searchTerm)
-      );
-    });
-  }, [chats, query]);
+    // Если очистили поиск, загружаем все чаты
+    if (!value.trim()) {
+      searchChats('');
+    }
+  }, [searchChats]);
+
+  // Теперь просто показываем все чаты (фильтрация происходит на сервере)
+  const filteredChats = useMemo(() => {
+    return chats;
+  }, [chats]);
 
   // Обработчик создания нового чата с проверкой номера
   const handleCreateNewChat = useCallback(async () => {
@@ -279,16 +288,15 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
         </div>
       </div>
 
-      {/* Search - фиксированная высота */}
-      <div className="p-3 bg-white dark:bg-gray-900 flex-shrink-0">
+      {/* 🔹 Telegram Style: Поиск */}
+      <div className="p-3 border-b border-gray-200 dark:border-gray-800">
         <div className="relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
-            type="text"
-            placeholder="Поиск или создание чата"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="pl-11 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm placeholder:text-gray-500 focus:bg-white dark:focus:bg-gray-700 focus:ring-2 focus:ring-[#00a884]/20 transition-all"
+            onChange={handleSearchChange}
+            placeholder="Поиск"
+            className="pl-10 rounded-2xl bg-gray-100 dark:bg-gray-800 border-0 focus-visible:ring-2 focus-visible:ring-blue-500"
           />
         </div>
       </div>

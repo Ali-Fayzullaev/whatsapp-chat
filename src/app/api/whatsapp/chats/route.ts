@@ -6,7 +6,19 @@ export async function GET(req: NextRequest) {
   try {
     console.log('Fetching chats from API...');
     
-    const apiUrl = `${apiConfig.getBaseUrl()}/api/chats`;
+    // Получаем параметры из URL
+    const { searchParams } = new URL(req.url);
+    const limit = searchParams.get('limit') || '100';
+    const search = searchParams.get('search');
+    
+    // Формируем URL с параметрами
+    const apiParams = new URLSearchParams();
+    apiParams.set('limit', limit);
+    if (search) {
+      apiParams.set('search', search);
+    }
+    
+    const apiUrl = `${apiConfig.getBaseUrl()}/api/chats?${apiParams.toString()}`;
     console.log('API URL:', apiUrl);
     
     // Получаем токен из заголовков запроса

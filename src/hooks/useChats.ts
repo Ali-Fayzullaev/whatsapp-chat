@@ -24,9 +24,12 @@ export function useChats() {
   const handleNewMessage = useCallback((chatId: string, message: Message) => {
     startTransition(() => {
       setChats(prev => {
+        let updatedChat: Chat | null = null;
+        
+        // Обновляем чат с новым сообщением
         const updated = prev.map(chat => {
           if (chat.id === chatId || chat.chat_id === chatId) {
-            return { 
+            updatedChat = { 
               ...chat, 
               lastMessage: {
                 text: message.text || '',
@@ -37,11 +40,20 @@ export function useChats() {
               },
               time: message.timestamp || new Date().toISOString(),
               unread: message.author === 'them' ? (chat.unread || 0) + 1 : chat.unread,
-              updatedAt: message.createdAt
+              updatedAt: message.createdAt || Date.now()
             };
+            return updatedChat;
           }
           return chat;
         });
+        
+        // Если нашли обновленный чат, поднимаем его наверх
+        if (updatedChat) {
+          const otherChats = updated.filter(chat => 
+            chat.id !== chatId && chat.chat_id !== chatId
+          );
+          return [updatedChat, ...otherChats];
+        }
         
         return updated;
       });
@@ -80,12 +92,12 @@ export function useChats() {
     onChatsUpdate: handleChatsUpdate,
   });
 
-  const loadChats = async (silent = false) => {
+  const loadChats = async (silent = false, search?: string) => {
     if (!silent) setLoading(true);
     setError(null);
 
     try {
-      const chatsData = await ApiClient.getChats();
+      const chatsData = await ApiClient.getChats(search);
       
       startTransition(() => {
         setChats(chatsData);
@@ -98,6 +110,11 @@ export function useChats() {
       if (!silent) setLoading(false);
     }
   };
+
+  // Функция поиска с дебаунсом
+  const searchChats = useCallback(async (searchQuery: string) => {
+    await loadChats(false, searchQuery);
+  }, []);
 
   // Первичная загрузка чатов
   useEffect(() => {
@@ -174,6 +191,7 @@ export function useChats() {
     error,
     isPending,
     loadChats,
+    searchChats,
     updateChat,
     addChat,
     createChat,

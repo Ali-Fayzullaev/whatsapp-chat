@@ -42,12 +42,23 @@ async function cachedFetch<T>(
 
 export class ApiClient {
   // Получение списка чатов с кэшированием
-  static async getChats(): Promise<Chat[]> {
+  static async getChats(search?: string): Promise<Chat[]> {
+    // Формируем параметры запроса
+    const params = new URLSearchParams();
+    params.set('limit', '100'); // Устанавливаем лимит 100
+    
+    if (search && search.trim()) {
+      params.set('search', search.trim());
+    }
+    
+    const url = `/api/whatsapp/chats?${params.toString()}`;
+    const cacheKey = search ? `chats_search_${search}` : 'chats';
+    
     const data = await cachedFetch<any[]>(
-      "/api/whatsapp/chats",
-      "chats",
+      url,
+      cacheKey,
       { cache: "no-store" },
-      30 * 1000 // 30 секунд кэш для чатов
+      search ? 10 * 1000 : 30 * 1000 // Меньше кэш для поиска
     );
 
     return data.map((raw: any, i: number) => {
