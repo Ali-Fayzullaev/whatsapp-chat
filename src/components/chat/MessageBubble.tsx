@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import type { Message } from "./types";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -58,6 +58,8 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteRemote, setDeleteRemote] = useState(false);
+  
+
   
   // Состояние для редактирования
   const [isEditing, setIsEditing] = useState(false);
@@ -213,7 +215,7 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
     }
   };
 
-  // 🔹 Telegram Style: Рендеринг сообщения, на которое отвечают
+  // Рендеринг сообщения, на которое отвечают (как в WhatsApp)
   const renderReply = () => {
     if (!msg.replyTo) return null;
 
@@ -607,19 +609,25 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                 onTouchMove={handleTouchMove}
               >
                 {/* Меню опций (появляется при hover) */}
-                <div className={`absolute -top-3 ${isMe ? '-left-1' : '-right-1'} opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10`}>
+                <div className={`absolute -top-3 ${isMe ? '-left-1' : '-right-1'} opacity-50 group-hover:opacity-100 transition-opacity duration-200 z-10`}>
                   <DropdownMenu open={showMenu} onOpenChange={setShowMenu}>
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                        onClick={() => console.log("🔘 Dropdown menu trigger clicked for message:", msg.id)}
                       >
                         <MoreHorizontal className="h-3 w-3" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="bg-white dark:bg-gray-800" align={isMe ? "start" : "end"}>
-                      <DropdownMenuItem onClick={handleReply}>
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          console.log("🔘 DropdownMenuItem 'Ответить' clicked for message:", msg.id);
+                          handleReply();
+                        }}
+                      >
                         <Reply className="h-4 w-4 mr-2" />
                         Ответить
                       </DropdownMenuItem>

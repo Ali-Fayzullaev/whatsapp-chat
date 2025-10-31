@@ -13,6 +13,8 @@ import { useToast } from "@/components/ui/toast";
 import type { Message, ReplyMessage } from "@/components/chat/types";
 import { ArrowLeft, MessageCircleMore } from "lucide-react";
 
+
+
 const MemoizedMessageBubble = memo(MessageBubble, (prevProps, nextProps) => {
   return (
     prevProps.msg.id === nextProps.msg.id &&
@@ -20,7 +22,8 @@ const MemoizedMessageBubble = memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.msg.status === nextProps.msg.status &&
     prevProps.msg.pending === nextProps.msg.pending &&
     prevProps.isReplying === nextProps.isReplying &&
-    JSON.stringify(prevProps.msg.media) === JSON.stringify(nextProps.msg.media)
+    JSON.stringify(prevProps.msg.media) === JSON.stringify(nextProps.msg.media) &&
+    JSON.stringify(prevProps.msg.replyTo) === JSON.stringify(nextProps.msg.replyTo)
   );
 });
 
@@ -31,7 +34,18 @@ interface OptimizedChatProps {
 
 export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   const [draft, setDraft] = useState("");
-  const [replyingTo, setReplyingTo] = useState<ReplyMessage | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ReplyMessage | null>(() => {
+    // Пытаемся восстановить состояние ответа из localStorage
+    if (typeof window !== 'undefined' && chatId) {
+      try {
+        const saved = localStorage.getItem(`replyingTo-${chatId}`);
+        return saved ? JSON.parse(saved) : null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -39,6 +53,17 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
 
   const { chats } = useChats();
   const { messages, loading, sendMessage, sendMediaMessage, deleteMessage } = useMessages(chatId);
+
+  // Сохранение состояния ответа в localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && chatId) {
+      if (replyingTo === null) {
+        localStorage.removeItem(`replyingTo-${chatId}`);
+      } else {
+        localStorage.setItem(`replyingTo-${chatId}`, JSON.stringify(replyingTo));
+      }
+    }
+  }, [replyingTo, chatId]);
   const { addToast } = useToast();
 
   const handleBackToSidebar = useCallback(() => {
@@ -69,12 +94,14 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   }, [messages, scrollToBottom, isNearBottom]);
 
   const handleSend = useCallback(async (text: string, replyTo?: ReplyMessage) => {
+
     if (!text.trim() || !chatId) return;
 
     const stick = isNearBottom();
     
     startTransition(() => {
       sendMessage(text.trim(), replyTo).then(() => {
+        console.log("📤 Сообщение отправлено, сбрасываем replyingTo");
         setDraft("");
         setReplyingTo(null);
         if (stick) setTimeout(scrollToBottom, 50);
@@ -83,7 +110,8 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   }, [chatId, sendMessage, isNearBottom, scrollToBottom]);
 
   const handleReplyToMessage = useCallback((message: Message) => {
-    setReplyingTo({
+    console.log("🔹 handleReplyToMessage вызвана с сообщением:", message);
+    const replyData = {
       id: message.id,
       author: message.author,
       text: message.text,
@@ -91,7 +119,14 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
         type: message.media.type,
         name: message.media.name,
       } : undefined,
-    });
+    };
+    console.log("🔹 Устанавливаем replyingTo:", replyData);
+    setReplyingTo(replyData);
+  }, []);
+
+  const clearReplyingTo = useCallback(() => {
+    console.log("🔹 Принудительно очищаем replyingTo");
+    setReplyingTo(null);
   }, []);
 
   const handleDeleteMessage = useCallback(async (messageId: string, remote = false) => {
@@ -216,8 +251,6 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
           showBackButton={true}
         />
 
-      <div className="h-1 bg-blue-500" title="HTTP режим активен" />
-
       {isTempChat && (
         <div className="px-3 md:px-6 py-3 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800">
           <div className="flex items-start gap-3">
@@ -291,10 +324,11 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
           disabled={!chatId || isPending}
           placeholder={isPending ? "Отправка..." : "Введите сообщение..."}
           replyingTo={replyingTo}
-          onCancelReply={() => setReplyingTo(null)}
+          onCancelReply={clearReplyingTo}
         />
       </div>
       </div>
+
     </TooltipProvider>
   );
 }

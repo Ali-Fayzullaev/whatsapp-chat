@@ -51,6 +51,38 @@ export function useWebSocketChats({
           
           // Если есть messageItem, обрабатываем как новое сообщение
           if (chatId && messageItem && onNewMessage) {
+            console.log("📦 Полученный messageItem:", messageItem);
+            console.log("📦 Ищем данные ответа в:", {
+              reply_to: messageItem.reply_to,
+              replyTo: messageItem.replyTo, 
+              quoted: messageItem.quoted,
+              contextInfo: messageItem.contextInfo,
+              quotedMessage: messageItem.quotedMessage
+            });
+            
+            // Расширенная обработка ответов - проверяем разные возможные поля
+            let replyTo: Message['replyTo'] = undefined;
+            
+            if (messageItem.reply_to || messageItem.replyTo || messageItem.quoted || 
+                messageItem.contextInfo?.quotedMessage || messageItem.quotedMessage) {
+              
+              const quotedData = messageItem.quoted || messageItem.contextInfo?.quotedMessage || messageItem.quotedMessage;
+              const replyId = messageItem.reply_to || messageItem.replyTo || quotedData?.id || quotedData?.id_message;
+              
+              if (replyId) {
+                replyTo = {
+                  id: replyId,
+                  author: quotedData?.direction === 'out' || quotedData?.author === 'me' ? 'me' : 'them',
+                  text: quotedData?.text || quotedData?.body || quotedData?.message || 'Сообщение',
+                  media: quotedData?.media ? {
+                    type: quotedData.media.type || 'document',
+                    name: quotedData.media.name
+                  } : undefined
+                };
+                console.log("📦 ✅ Найдены данные ответа:", replyTo);
+              }
+            }
+
             // Преобразуем messageItem в формат Message
             const message: Message = {
               id: messageItem.id_message || Date.now().toString(),
@@ -67,7 +99,8 @@ export function useWebSocketChats({
               timestamp: messageItem.timestamp,
               id_message: messageItem.id_message,
               media: messageItem.media,
-              sender: messageItem.sender
+              sender: messageItem.sender,
+              replyTo
             };
             
             onNewMessage(chatId, message);

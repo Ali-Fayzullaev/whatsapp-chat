@@ -98,7 +98,7 @@ export function Composer({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                Ответ на {replyingTo.author === "me" ? "ваше" : "сообщение"}
+                Ответ на {replyingTo.author === "me" ? "ваше" : "сообщение"} (ID: {replyingTo.id})
               </span>
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400 truncate">

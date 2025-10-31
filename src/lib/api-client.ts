@@ -182,6 +182,9 @@ export class ApiClient {
     dataCache.invalidate(`messages-${chatId}`);
     dataCache.invalidate("chats");
 
+    const replyId = replyTo?.id || replyTo;
+    console.log("📤 API: Отправляем сообщение с reply_to:", replyId);
+
     const response = await fetch(`/api/whatsapp/chats/${encodeURIComponent(chatId)}/send`, {
       method: "POST",
       headers: {
@@ -190,7 +193,7 @@ export class ApiClient {
       },
       body: JSON.stringify({
         text,
-        reply_to: replyTo,
+        reply_to: replyId,
       }),
     });
 
@@ -217,7 +220,7 @@ export class ApiClient {
         chatId,
         media_url: mediaUrl,
         caption: caption || "",
-        reply_to: replyTo,
+        reply_to: replyTo?.id || replyTo,
       }),
     });
 

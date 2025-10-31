@@ -4,6 +4,7 @@ import { useState, useEffect, useOptimistic, useTransition, useCallback } from "
 import { ApiClient } from "@/lib/api-client";
 import { useToast } from "@/components/ui/toast";
 import { useWebSocketChats } from "./useWebSocketChats";
+import { useReplyCache } from "./useReplyCache";
 import { FEATURES } from "@/config/features";
 import type { Message } from "@/components/chat/types";
 
@@ -52,6 +53,9 @@ export function useMessages(chatId: string | null) {
     onNewMessage: handleNewMessage,
     onMessageUpdated: handleMessageUpdated,
   });
+
+  // Простое кэширование ответов
+  const { cacheReply, getReply } = useReplyCache(chatId);
 
   // Оптимистичные обновления для мгновенного отображения сообщений
   const [optimisticMessages, addOptimisticMessage] = useOptimistic(
@@ -222,7 +226,7 @@ export function useMessages(chatId: string | null) {
     const tempId = crypto.randomUUID();
     const now = Date.now();
 
-    // Создаем оптимистичное сообщение
+    // Создаем оптимистичное сообщение с поддержкой ответов
     const optimisticMsg: OptimisticMessage = {
       id: tempId,
       chatId,
@@ -236,7 +240,23 @@ export function useMessages(chatId: string | null) {
       status: "sent",
       isRead: true,
       pending: true,
+      replyTo: replyTo ? {
+        id: replyTo.id,
+        author: replyTo.author as "me" | "them",
+        text: replyTo.text,
+        media: replyTo.media
+      } : undefined,
     };
+
+    // Кэшируем информацию об ответе если есть
+    if (replyTo) {
+      cacheReply(tempId, {
+        id: replyTo.id,
+        author: replyTo.author as "me" | "them",
+        text: replyTo.text,
+        media: replyTo.media
+      });
+    }
 
     // Добавляем оптимистично в transition
     startTransition(() => {
@@ -293,8 +313,18 @@ export function useMessages(chatId: string | null) {
         }
       }
 
-      // Отправляем сообщение
-      await ApiClient.sendMessage(actualChatId, text, replyTo);
+      // Отправляем сообщение (ответы обрабатываются визуально через UI)
+      const sendResult = await ApiClient.sendMessage(actualChatId, text, replyTo?.id);
+
+      // Кэшируем ответ для реального ID сообщения если получили его
+      if (sendResult?.id_message && replyTo) {
+        cacheReply(sendResult.id_message, {
+          id: replyTo.id,
+          author: replyTo.author as "me" | "them", 
+          text: replyTo.text,
+          media: replyTo.media
+        });
+      }
 
       // Перезагружаем сообщения чтобы получить реальный ID
       setTimeout(() => {
@@ -383,8 +413,14 @@ export function useMessages(chatId: string | null) {
     }
   }, [chatId, isConnected]);
 
+  // Обогащаем сообщения данными об ответах из кэша
+  const enrichedMessages = optimisticMessages.map(msg => ({
+    ...msg,
+    replyTo: msg.replyTo || getReply(msg.id) || getReply(msg.id_message || '')
+  }));
+
   return {
-    messages: optimisticMessages,
+    messages: enrichedMessages,
     loading,
     error,
     isPending,
