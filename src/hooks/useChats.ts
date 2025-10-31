@@ -176,6 +176,17 @@ export function useChats() {
     return tempChatId;
   };
 
+  // Сброс непрочитанных сообщений
+  const markChatAsRead = (chatId: string) => {
+    startTransition(() => {
+      setChats(prev => prev.map(chat => 
+        (chat.id === chatId || chat.chat_id === chatId) 
+          ? { ...chat, unread: 0 } 
+          : chat
+      ));
+    });
+  };
+
   // Удаление чата
   const deleteChat = async (chatId: string): Promise<boolean> => {
     try {
@@ -203,6 +214,7 @@ export function useChats() {
     addChat,
     createChat,
     deleteChat,
+    markChatAsRead,
     // WebSocket статус
     isConnected,
     isRealTime,

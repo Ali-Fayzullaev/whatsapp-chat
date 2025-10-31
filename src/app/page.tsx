@@ -2,14 +2,24 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { OptimizedSidebar } from "@/components/optimized/OptimizedSidebar";
 import { OptimizedChat } from "@/components/optimized/OptimizedChat";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
+import { useChats } from "@/hooks/useChats";
 
 function ChatContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { markChatAsRead } = useChats();
   
   // Получаем chatId из query параметров
   const chatId = searchParams.get('chat');
+
+  // Автоматически сбрасываем непрочитанные сообщения при открытии чата
+  useEffect(() => {
+    if (chatId) {
+      const decodedChatId = decodeURIComponent(chatId);
+      markChatAsRead(decodedChatId);
+    }
+  }, [chatId, markChatAsRead]);
 
   return (
     <div className="flex h-screen w-full bg-white dark:bg-gray-900">

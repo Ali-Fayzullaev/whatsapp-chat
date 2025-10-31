@@ -108,7 +108,7 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
   const [showNewChatDialog, setShowNewChatDialog] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState("");
   const [isCreatingChat, setIsCreatingChat] = useState(false);
-  const { chats, loading, isPending, searchChats } = useChats();
+  const { chats, loading, isPending, searchChats, markChatAsRead } = useChats();
   const { addToast } = useToast();
   const router = useRouter();
 
@@ -208,9 +208,12 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
   const handleSelectChat = useCallback((chatId: string) => {
     if (chatId === selectedChatId) return; // Избегаем повторной навигации
     
+    // Сбрасываем непрочитанные сообщения
+    markChatAsRead(chatId);
+    
     // Используем query параметр для переключения чата
     router.push(`/?chat=${encodeURIComponent(chatId)}`, { scroll: false });
-  }, [router, selectedChatId]);
+  }, [router, selectedChatId, markChatAsRead]);
 
   // Создание нового чата
   const handleCreateChat = useCallback((phone: string) => {
