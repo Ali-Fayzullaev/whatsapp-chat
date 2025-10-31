@@ -112,27 +112,52 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   }, [chatId, deleteMessage]);
   const handleFileSelect = useCallback(async (file: File) => {
     if (!chatId) return;
+    
     try {
+      // Используем универсальный endpoint для всех типов файлов
+      const uploadEndpoint = '/api/whatsapp/files/upload-file';
+      
+      // Определяем тип файла для отображения
+      const fileType = file.type.toLowerCase();
+      let mediaType = 'document';
+      
+      if (fileType.startsWith('image/')) {
+        mediaType = 'image';
+      } else if (fileType.startsWith('video/')) {
+        mediaType = 'video';
+      } else if (fileType.startsWith('audio/')) {
+        mediaType = 'audio';
+      }
+
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('chatId', chatId);
-      const response = await fetch('/api/whatsapp/files/upload-image', {
+      
+      const response = await fetch(uploadEndpoint, {
         method: 'POST',
         body: formData,
       });
+      
       if (!response.ok) {
         const errorText = await response.text();
         addToast({
           type: "error",
           title: "Ошибка загрузки файла",
-          description: response.status === 404 ? 'API не найден' : errorText
+          description: `${response.status}: ${errorText}`
         });
         return;
       }
+      
       const result = await response.json();
       const mediaUrl = result.path ? `https://socket.eldor.kz${result.path}` : result.mediaUrl || result.url;
+      
+      // Создаем объект файла с определенным типом
+      const mediaFile = {
+        ...file,
+        name: `${mediaType}_${Date.now()}.${file.name.split('.').pop()}`
+      };
+      
       startTransition(() => {
-        sendMediaMessage(file, mediaUrl, replyingTo);
+        sendMediaMessage(mediaFile, mediaUrl, replyingTo);
         setReplyingTo(null);
       });
     } catch (error) {

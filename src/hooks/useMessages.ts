@@ -96,9 +96,10 @@ export function useMessages(chatId: string | null) {
     const now = Date.now();
     // Определяем тип медиа
     const getMediaType = (file: File) => {
-      if (file.type.startsWith('image/')) return 'image';
-      if (file.type.startsWith('video/')) return 'video'; 
-      if (file.type.startsWith('audio/')) return 'audio';
+      const fileType = file.type || '';
+      if (fileType.startsWith('image/')) return 'image';
+      if (fileType.startsWith('video/')) return 'video'; 
+      if (fileType.startsWith('audio/')) return 'audio';
       return 'document';
     };
     // Создаем оптимистичное медиа-сообщение
