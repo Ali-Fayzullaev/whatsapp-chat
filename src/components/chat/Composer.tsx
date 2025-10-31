@@ -6,18 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Paperclip, Send, X, Mic, Smile } from "lucide-react";
 import { useRef, useEffect, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import type { ReplyMessage } from "./types";
-
-const EMOJI_LIST = [
-  "😀", "😁", "😂", "🤣", "😃", "😄", "😅", "😆", "😉", "😊", "😋", "😍", "😘", "🥰", "😗", 
-  "😙", "😚", "🙂", "🤗", "🤩", "🤔", "🤨", "😐", "😑", "😶", "🙄", "😏", "😣", "😥", "😮", 
-  "🤐", "😯", "😪", "😴", "😌", "😛", "😜", "😝", "🤤", "😒", "😓", "😔", "😕", "🙃", "🤑", 
-  "😲", "☹️", "🙁", "😖", "😞", "😟", "😤", "😢", "😭", "😦", "😧", "😨", "😩", "🤯", "😬", 
-  "😰", "😱", "🥵", "🥶", "😳", "🤪", "😵", "😡", "😠", "🤬", "😷", "🤒", "🤕", "🤢", "🤮", 
-  "🤧", "😇", "🤠", "🥳", "🥺", "🤡", "🤥", "🤫", "🤭", "🧐", "🤓", "😈", "👿", "👻", "👽", 
-  "🤖", "💩", "👍", "👎", "🙏", "👏", "🙌", "💪", "🤝", "❤️", "🧡", "💛", "💚", "💙", "💜", 
-  "🤎", "🖤", "🤍", "💔", "❣️", "💕", "💞", "💖", "💗", "💘", "💝", "✨", "⭐", "🌟", "🔥", "🌈",
-];
 
 interface ComposerProps {
   draft: string;
@@ -59,7 +49,8 @@ export function Composer({
     }
   };
 
-  const handleEmojiSelect = (emoji: string) => {
+  const handleEmojiSelect = (emojiData: EmojiClickData) => {
+    const emoji = emojiData.emoji;
     const textarea = textareaRef.current;
     if (textarea) {
       const start = textarea.selectionStart;
@@ -74,6 +65,7 @@ export function Composer({
     } else {
       setDraft(draft + emoji);
     }
+    setShowEmojiPicker(false);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,25 +133,19 @@ export function Composer({
             </Button>
           </PopoverTrigger>
           <PopoverContent 
-            className="w-80 p-4 bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 rounded-2xl"
+            className="p-0 border-0 shadow-xl rounded-2xl overflow-hidden"
             align="start"
             side="top"
           >
-            <div className="grid grid-cols-8 gap-2 max-h-64 overflow-y-auto">
-              {EMOJI_LIST.map((emoji, index) => (
-                <button
-                  key={index}
-                  onClick={() => {
-                    handleEmojiSelect(emoji);
-                    setShowEmojiPicker(false);
-                  }}
-                  className="w-8 h-8 text-lg hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors flex items-center justify-center"
-                  type="button"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
+            <EmojiPicker
+              onEmojiClick={handleEmojiSelect}
+              theme={Theme.AUTO}
+              height={400}
+              width={320}
+              searchDisabled={false}
+              skinTonesDisabled={false}
+              previewConfig={{ showPreview: false }}
+            />
           </PopoverContent>
         </Popover>
 
