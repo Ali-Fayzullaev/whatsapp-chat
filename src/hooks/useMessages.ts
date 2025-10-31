@@ -5,6 +5,7 @@ import { ApiClient } from "@/lib/api-client";
 import { useToast } from "@/components/ui/toast";
 import { useWebSocketChats } from "./useWebSocketChats";
 import { useReplyCache } from "./useReplyCache";
+import { useUnreadMessages } from "./useUnreadMessages";
 import { FEATURES } from "@/config/features";
 import type { Message } from "@/components/chat/types";
 interface OptimisticMessage extends Message {
@@ -17,8 +18,17 @@ export function useMessages(chatId: string | null) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const { addToast } = useToast();
+  
+  // Интеграция с системой непрочитанных сообщений
+  const { addUnreadMessage } = useUnreadMessages();
   // WebSocket обработчики для сообщений
   const handleNewMessage = useCallback((receivedChatId: string, message: Message) => {
+    // Добавляем в систему непрочитанных сообщений, если это входящее сообщение
+    // и не в текущем открытом чате
+    if (message.author === 'them' && message.id && receivedChatId !== chatId) {
+      addUnreadMessage(message.id, receivedChatId);
+    }
+
     if (receivedChatId === chatId) {
       startTransition(() => {
         setMessages(prev => {
@@ -32,7 +42,7 @@ export function useMessages(chatId: string | null) {
         });
       });
     }
-  }, [chatId]);
+  }, [chatId, addUnreadMessage]);
   const handleMessageUpdated = useCallback((receivedChatId: string, message: Message) => {
     if (receivedChatId === chatId) {
       startTransition(() => {
@@ -343,19 +353,29 @@ export function useMessages(chatId: string | null) {
       setLoading(false);
     }
   }, [chatId]);
-  // HTTP polling fallback для сообщений когда WebSocket не подключен
+  // HTTP polling fallback для сообщений только когда WebSocket отключен или не работает
   useEffect(() => {
     if (!chatId || chatId.startsWith("temp:")) return;
-    if (!FEATURES.WEBSOCKET_ENABLED || !isConnected) {
+    
+    // HTTP polling используется только если:
+    // 1. WebSocket полностью отключен в конфигурации ИЛИ
+    // 2. WebSocket включен, но не подключен
+    const shouldUsePolling = !FEATURES.WEBSOCKET_ENABLED || (FEATURES.WEBSOCKET_ENABLED && !isConnected);
+    
+    if (shouldUsePolling) {
+      console.log(`📡 Using HTTP polling for messages in chat ${chatId} - WebSocket not connected`);
+      
       const interval = setInterval(() => {
         if (document.visibilityState === "visible") {
           loadMessages(chatId, true); // silent reload
         }
       }, FEATURES.HTTP_POLLING_INTERVAL);
+      
       return () => clearInterval(interval);
     } else {
+      console.log(`🔌 Using WebSocket for real-time messages in chat ${chatId} - HTTP polling disabled`);
     }
-  }, [chatId, isConnected]);
+  }, [chatId, isConnected, loadMessages]);
 
   // Обогащаем сообщения данными об ответах из кэша
   const enrichedMessages = optimisticMessages.map(msg => ({

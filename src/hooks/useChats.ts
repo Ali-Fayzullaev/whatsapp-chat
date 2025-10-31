@@ -1,8 +1,9 @@
 // src/hooks/useChats.ts
 "use client";
-import { useState, useEffect, useTransition, useCallback } from "react";
+import { useState, useEffect, useTransition, useCallback, useRef } from "react";
 import { ApiClient } from "@/lib/api-client";
 import { useWebSocketChats } from "./useWebSocketChats";
+import { useUnreadMessages } from "./useUnreadMessages";
 import { FEATURES } from "@/config/features";
 import type { Chat, Message } from "@/components/chat/types";
 
@@ -11,6 +12,16 @@ export function useChats() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  
+  // Интеграция с системой непрочитанных сообщений
+  const { 
+    addUnreadMessage, 
+    markChatAsRead: markUnreadChatAsRead, 
+    getUnreadCount 
+  } = useUnreadMessages();
+  
+  // Флаг для предотвращения циклических обновлений
+  const updatingUnreadRef = useRef(false);
 
   // WebSocket обработчики
   const handleChatUpdated = useCallback((updatedChat: Chat) => {
@@ -22,6 +33,11 @@ export function useChats() {
   }, []);
 
   const handleNewMessage = useCallback((chatId: string, message: Message) => {
+    // Добавляем в систему непрочитанных сообщений, если сообщение от собеседника
+    if (message.author === 'them' && message.id) {
+      addUnreadMessage(message.id, chatId);
+    }
+    
     startTransition(() => {
       setChats(prev => {
         let updatedChat: Chat | null = null;
@@ -29,6 +45,9 @@ export function useChats() {
         // Обновляем чат с новым сообщением
         const updated = prev.map(chat => {
           if (chat.id === chatId || chat.chat_id === chatId) {
+            // Получаем актуальное количество непрочитанных сообщений
+            const unreadCount = getUnreadCount(chatId);
+            
             updatedChat = { 
               ...chat, 
               lastMessage: {
@@ -39,7 +58,7 @@ export function useChats() {
                 id_message: message.id_message
               },
               time: message.timestamp || new Date().toISOString(),
-              unread: message.author === 'them' ? (chat.unread || 0) + 1 : chat.unread,
+              unread: unreadCount,
               updatedAt: message.createdAt || Date.now()
             };
             return updatedChat;
@@ -58,7 +77,7 @@ export function useChats() {
         return updated;
       });
     });
-  }, []);
+  }, [addUnreadMessage, getUnreadCount]);
 
   const handleNewChat = useCallback((newChat: Chat) => {
     startTransition(() => {
@@ -92,7 +111,7 @@ export function useChats() {
     onChatsUpdate: handleChatsUpdate,
   });
 
-  const loadChats = async (silent = false, search?: string) => {
+  const loadChats = useCallback(async (silent = false, search?: string) => {
     if (!silent) setLoading(true);
     setError(null);
 
@@ -100,6 +119,13 @@ export function useChats() {
       const chatsData = await ApiClient.getChats(search);
       
       startTransition(() => {
+        // Временно отключаем интеграцию с getUnreadCount для устранения цикла
+        // TODO: Добавить обратно после исправления циклических зависимостей
+        // const chatsWithUnread = chatsData.map(chat => ({
+        //   ...chat,
+        //   unread: getUnreadCount(chat.id || chat.chat_id)
+        // }));
+        
         // Сортируем чаты по времени последнего обновления (новые сверху)
         const sortedChats = chatsData.sort((a, b) => {
           const timeA = a.updatedAt || new Date(a.time || 0).getTime() || 0;
@@ -116,22 +142,27 @@ export function useChats() {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, []); // Убрали getUnreadCount из зависимостей
 
   // Функция поиска с дебаунсом
   const searchChats = useCallback(async (searchQuery: string) => {
     await loadChats(false, searchQuery);
-  }, []);
+  }, [loadChats]);
 
   // Первичная загрузка чатов
   useEffect(() => {
     loadChats();
-  }, []);
+  }, [loadChats]);
 
-  // HTTP polling fallback когда WebSocket не подключен
+  // HTTP polling fallback только когда WebSocket отключен или не работает
   useEffect(() => {
-    if (!FEATURES.WEBSOCKET_ENABLED || !isConnected) {
-      console.log("📡 Using HTTP polling for chats");
+    // HTTP polling используется только если:
+    // 1. WebSocket полностью отключен в конфигурации ИЛИ
+    // 2. WebSocket включен, но не подключен
+    const shouldUsePolling = !FEATURES.WEBSOCKET_ENABLED || (FEATURES.WEBSOCKET_ENABLED && !isConnected);
+    
+    if (shouldUsePolling) {
+      console.log("📡 Using HTTP polling for chats - WebSocket not connected");
       
       const interval = setInterval(() => {
         if (document.visibilityState === "visible") {
@@ -141,9 +172,12 @@ export function useChats() {
 
       return () => clearInterval(interval);
     } else {
-      console.log("🔌 Using WebSocket for real-time chat updates");
+      console.log("🔌 Using WebSocket for real-time chat updates - HTTP polling disabled");
     }
-  }, [isConnected]);
+  }, [isConnected, loadChats]);
+
+  // TODO: Добавить обновление счетчиков непрочитанных сообщений
+  // после исправления циклических зависимостей
 
   // Обновление конкретного чата
   const updateChat = (chatId: string, updates: Partial<Chat>) => {
@@ -177,7 +211,10 @@ export function useChats() {
   };
 
   // Сброс непрочитанных сообщений
-  const markChatAsRead = (chatId: string) => {
+  const markChatAsRead = useCallback((chatId: string) => {
+    // Помечаем чат как прочитанный в системе непрочитанных сообщений
+    markUnreadChatAsRead(chatId);
+    
     startTransition(() => {
       setChats(prev => prev.map(chat => 
         (chat.id === chatId || chat.chat_id === chatId) 
@@ -185,7 +222,7 @@ export function useChats() {
           : chat
       ));
     });
-  };
+  }, [markUnreadChatAsRead]);
 
   // Удаление чата
   const deleteChat = async (chatId: string): Promise<boolean> => {

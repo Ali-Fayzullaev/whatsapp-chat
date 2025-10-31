@@ -1,6 +1,6 @@
 // src/hooks/useWebSocketChats.ts
 "use client";
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from '@/providers/WebSocketProvider';
 import { formatMessageTime } from '@/utils/dateFormat';
 import type { Chat, Message } from '@/components/chat/types';
@@ -30,6 +30,9 @@ export function useWebSocketChats({
   onChatsUpdate
 }: UseWebSocketChatsProps) {
   const { isConnected, onMessage, offMessage } = useWebSocket();
+  
+  // Создаем стабильную ссылку на handleWebSocketMessage
+  const handleWebSocketMessageRef = useRef<((data: any) => void) | null>(null);
   const handleWebSocketMessage = useCallback((data: any) => {
     try {
       // Определяем тип события по структуре данных
@@ -156,14 +159,26 @@ export function useWebSocketChats({
       // Тихо обрабатываем ошибки в production
     }
   }, [onChatUpdated, onNewMessage, onMessageUpdated, onChatDeleted, onNewChat, onChatsUpdate]);
+
+  // Создаем стабильную ссылку на обработчик
+  if (!handleWebSocketMessageRef.current) {
+    handleWebSocketMessageRef.current = handleWebSocketMessage;
+  } else {
+    // Обновляем ссылку на текущий обработчик
+    handleWebSocketMessageRef.current = handleWebSocketMessage;
+  }
+
   useEffect(() => {
-    if (isConnected) {
-      onMessage(handleWebSocketMessage);
+    const stableHandler = handleWebSocketMessageRef.current;
+    if (isConnected && stableHandler) {
+      onMessage(stableHandler);
       return () => {
-        offMessage(handleWebSocketMessage);
+        if (stableHandler) {
+          offMessage(stableHandler);
+        }
       };
     }
-  }, [isConnected, onMessage, offMessage, handleWebSocketMessage]);
+  }, [isConnected, onMessage, offMessage]);
   return {
     isConnected,
     isRealTime: isConnected

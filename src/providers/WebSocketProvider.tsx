@@ -33,20 +33,20 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected');
   const [lastMessage, setLastMessage] = useState<any>(null);
-  const [messageHandlers, setMessageHandlers] = useState<((data: any) => void)[]>([]);
 
-  // Refs для WebSocket
+  // Refs для WebSocket и обработчиков
   const wsConnectionRef = useRef<WebSocket | null>(null);
   const wsReconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
   const shouldReconnectWsRef = useRef(true);
+  const messageHandlersRef = useRef<Set<(data: any) => void>>(new Set());
 
   // Функции управления подписками
   const onMessage = useCallback((handler: (data: any) => void) => {
-    setMessageHandlers(prev => [...prev, handler]);
+    messageHandlersRef.current.add(handler);
   }, []);
 
   const offMessage = useCallback((handler: (data: any) => void) => {
-    setMessageHandlers(prev => prev.filter(h => h !== handler));
+    messageHandlersRef.current.delete(handler);
   }, []);
 
   // Очистка таймера переподключения
@@ -87,7 +87,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     setLastMessage(payload);
     
     // Уведомляем всех подписчиков
-    messageHandlers.forEach(handler => {
+    messageHandlersRef.current.forEach((handler: (data: any) => void) => {
       try {
         handler(payload);
       } catch (error) {
@@ -118,7 +118,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         console.log("🔔 Неизвестное событие WebSocket:", type, payload);
         break;
     }
-  }, [messageHandlers]);
+  }, []);
 
   // Основная функция подключения WebSocket
   const connectWebSocket = useCallback(() => {
@@ -141,6 +141,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     const url = `${WS_BASE_URL}?${params.toString()}`;
 
     console.log("🔗 Подключение к WebSocket:", url.replace(/token=[^&]+/, 'token=***'));
+    console.log(`📋 WebSocket статус: WEBSOCKET_ENABLED=${FEATURES.WEBSOCKET_ENABLED}, URL=${WS_BASE_URL}`);
     setConnectionState('connecting');
 
     // Закрываем существующее соединение
@@ -168,6 +169,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
     socket.onopen = () => {
       console.log("✅ WebSocket успешно подключен!");
+      console.log(`🔌 WebSocket статус подключения: readyState=${socket.readyState}`);
       setIsConnected(true);
       setConnectionState('connected');
       
@@ -176,7 +178,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         try {
           if (socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
-            console.log("📤 Отправлен ping");
+            console.log("📤 Отправлен ping для проверки соединения");
           }
         } catch (e) {
           console.error("❌ Ошибка отправки ping:", e);
@@ -204,12 +206,16 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
     socket.onclose = (event) => {
       console.log(`🔚 WebSocket закрыт: код ${event.code}, причина: ${event.reason || 'не указана'}`);
+      console.log(`🔌 WebSocket статус отключения: readyState=${socket.readyState}, wasClean=${event.wasClean}`);
       setIsConnected(false);
       setConnectionState('disconnected');
       wsConnectionRef.current = null;
       
       if (shouldReconnectWsRef.current) {
+        console.log("🔄 Планируется автоматическое переподключение WebSocket...");
         scheduleWsReconnect();
+      } else {
+        console.log("⏹️ Автоматическое переподключение WebSocket отключено");
       }
     };
   }, [clearWsReconnectTimer, scheduleWsReconnect, handleWsEnvelope]);
