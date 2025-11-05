@@ -2,9 +2,10 @@
 "use client";
 import { useWebSocket } from '@/providers/WebSocketProvider';
 import { FEATURES } from '@/config/features';
+import { Button } from '@/components/ui/button';
 
 export function WebSocketConnectionStatus() {
-  const { isConnected, connectionState } = useWebSocket();
+  const { isConnected, connectionState, reconnect } = useWebSocket();
 
   // Не показываем статус, если WebSocket отключен или не нужно показывать статус
   if (!FEATURES.WEBSOCKET_ENABLED || !FEATURES.SHOW_CONNECTION_STATUS) {
@@ -58,6 +59,16 @@ export function WebSocketConnectionStatus() {
     <div className={`flex items-center space-x-2 text-xs ${getStatusColor()}`}>
       <span>{getStatusIcon()}</span>
       <span>{getStatusText()}</span>
+      {(connectionState === 'error' || connectionState === 'disconnected') && (
+        <Button
+          onClick={reconnect}
+          size="sm"
+          variant="ghost" 
+          className="h-5 px-2 text-xs text-white hover:bg-white/10"
+        >
+          ↻
+        </Button>
+      )}
     </div>
   );
 }

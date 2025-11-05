@@ -4,8 +4,11 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef } f
 import { FEATURES } from "@/config/features";
 
 // Константы для WebSocket
-const WS_RECONNECT_DELAY = 5000;
+const WS_RECONNECT_DELAY = 3000; // Уменьшили до 3 секунд
 const WS_BASE_URL = "wss://socket.eldor.kz/api/ws";
+const MAX_RECONNECT_ATTEMPTS = 10; // Максимум попыток переподключения
+const INITIAL_RETRY_DELAY = 1000; // Начальная задержка retry
+const HEARTBEAT_INTERVAL = 30000; // Heartbeat каждые 30 секунд
 
 interface WebSocketContextType {
   isConnected: boolean;
@@ -39,6 +42,8 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const wsReconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
   const shouldReconnectWsRef = useRef(true);
   const messageHandlersRef = useRef<Set<(data: any) => void>>(new Set());
+  const reconnectAttemptsRef = useRef(0);
+  const heartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Функции управления подписками
   const onMessage = useCallback((handler: (data: any) => void) => {
@@ -57,16 +62,56 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Планирование переподключения
+  // Управление heartbeat
+  const startHeartbeat = useCallback(() => {
+    if (heartbeatTimerRef.current) {
+      clearInterval(heartbeatTimerRef.current);
+    }
+    
+    heartbeatTimerRef.current = setInterval(() => {
+      if (wsConnectionRef.current?.readyState === WebSocket.OPEN) {
+        try {
+          wsConnectionRef.current.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+          console.log("💓 Heartbeat ping отправлен");
+        } catch (error) {
+          console.error("❌ Ошибка отправки heartbeat:", error);
+        }
+      }
+    }, HEARTBEAT_INTERVAL);
+  }, []);
+
+  const stopHeartbeat = useCallback(() => {
+    if (heartbeatTimerRef.current) {
+      clearInterval(heartbeatTimerRef.current);
+      heartbeatTimerRef.current = null;
+    }
+  }, []);
+
+  // Планирование переподключения с экспоненциальной задержкой
   const scheduleWsReconnect = useCallback(() => {
     if (!shouldReconnectWsRef.current) return;
     if (wsReconnectTimerRef.current) return;
     
-    console.log('🔄 Планируется переподключение WebSocket через', WS_RECONNECT_DELAY, 'ms');
+    reconnectAttemptsRef.current += 1;
+    
+    if (reconnectAttemptsRef.current > MAX_RECONNECT_ATTEMPTS) {
+      console.error(`❌ Максимальное количество попыток переподключения (${MAX_RECONNECT_ATTEMPTS}) достигнуто`);
+      setConnectionState('error');
+      return;
+    }
+    
+    // Экспоненциальная задержка: 1s, 2s, 4s, 8s, но не больше WS_RECONNECT_DELAY
+    const delay = Math.min(
+      INITIAL_RETRY_DELAY * Math.pow(2, reconnectAttemptsRef.current - 1), 
+      WS_RECONNECT_DELAY
+    );
+    
+    console.log(`🔄 Планируется переподключение WebSocket (попытка ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS}) через ${delay}ms`);
+    
     wsReconnectTimerRef.current = setTimeout(() => {
       wsReconnectTimerRef.current = null;
       connectWebSocket();
-    }, WS_RECONNECT_DELAY);
+    }, delay);
   }, []);
 
   // Обработка сообщений WebSocket
@@ -170,8 +215,15 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     socket.onopen = () => {
       console.log("✅ WebSocket успешно подключен!");
       console.log(`🔌 WebSocket статус подключения: readyState=${socket.readyState}`);
+      
+      // Сбрасываем счетчик попыток при успешном подключении
+      reconnectAttemptsRef.current = 0;
+      
       setIsConnected(true);
       setConnectionState('connected');
+      
+      // Запускаем heartbeat
+      startHeartbeat();
       
       // Отправляем тестовый ping через секунду
       setTimeout(() => {
@@ -207,6 +259,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     socket.onclose = (event) => {
       console.log(`🔚 WebSocket закрыт: код ${event.code}, причина: ${event.reason || 'не указана'}`);
       console.log(`🔌 WebSocket статус отключения: readyState=${socket.readyState}, wasClean=${event.wasClean}`);
+      
+      // Останавливаем heartbeat
+      stopHeartbeat();
+      
       setIsConnected(false);
       setConnectionState('disconnected');
       wsConnectionRef.current = null;
@@ -241,6 +297,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   // Функция ручного переподключения
   const reconnect = useCallback(() => {
     console.log("🔄 Ручное переподключение WebSocket");
+    reconnectAttemptsRef.current = 0; // Сбрасываем счетчик при ручном переподключении
     shouldReconnectWsRef.current = true;
     connectWebSocket();
   }, [connectWebSocket]);
@@ -254,26 +311,46 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
     console.log("🚀 Инициализация WebSocket Provider");
     
-    // Функция для проверки токена и подключения
-    const checkTokenAndConnect = () => {
+    // Функция для проверки токена и подключения с задержкой
+    const checkTokenAndConnect = (attempt = 1) => {
       const token = localStorage.getItem('auth_token');
+      
+      console.log(`🔍 Проверка токена (попытка ${attempt}):`, token ? 'найден' : 'не найден');
+      
       if (token && shouldReconnectWsRef.current) {
         console.log("🔑 Токен найден, подключаем WebSocket");
-        connectWebSocket();
+        // Небольшая задержка для стабильности
+        setTimeout(() => {
+          connectWebSocket();
+        }, 100);
       } else if (!token) {
-        console.log("⏳ Ожидаем авторизацию пользователя");
+        console.log("⏳ Токен не найден");
         setConnectionState('disconnected');
+        
+        // Повторная проверка токена (максимум 5 попыток с интервалом 1 секунда)
+        if (attempt < 5) {
+          console.log(`⏰ Повторная проверка токена через 1 секунду (попытка ${attempt + 1}/5)`);
+          setTimeout(() => {
+            checkTokenAndConnect(attempt + 1);
+          }, 1000);
+        } else {
+          console.log("⏹️ Максимальное количество попыток проверки токена достигнуто");
+        }
       }
     };
 
-    // Проверяем токен при загрузке
-    checkTokenAndConnect();
+    // Задержка для загрузки DOM и localStorage
+    const initTimer = setTimeout(() => {
+      checkTokenAndConnect();
+    }, 100);
 
     // Отслеживаем изменения в localStorage (когда пользователь авторизуется)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'auth_token') {
         console.log("🔄 Изменение токена авторизации");
-        checkTokenAndConnect();
+        setTimeout(() => {
+          checkTokenAndConnect();
+        }, 100);
       }
     };
 
@@ -282,8 +359,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
     // Cleanup при размонтировании
     return () => {
+      clearTimeout(initTimer);
       shouldReconnectWsRef.current = false;
       clearWsReconnectTimer();
+      stopHeartbeat();
       window.removeEventListener('storage', handleStorageChange);
       
       if (wsConnectionRef.current) {
@@ -292,7 +371,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         wsConnectionRef.current.close();
       }
     };
-  }, [connectWebSocket, clearWsReconnectTimer]);
+  }, [connectWebSocket, clearWsReconnectTimer, startHeartbeat, stopHeartbeat]);
 
   // Функция для запуска подключения после авторизации
   const startConnection = useCallback(() => {
