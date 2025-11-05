@@ -3,6 +3,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from '@/providers/WebSocketProvider';
 import { formatMessageTime } from '@/utils/dateFormat';
+import { ApiClient } from '@/lib/api-client';
 import type { Chat, Message } from '@/components/chat/types';
 interface WebSocketChatEvent {
   type: 'chat_updated' | 'new_message' | 'message_updated' | 'chat_deleted' | 'new_chat';
@@ -45,6 +46,12 @@ export function useWebSocketChats({
           break;
         case 'message.created':
         case 'message.updated':
+          // Инвалидируем кеш при получении новых сообщений
+          if (chatId) {
+            ApiClient.invalidateChatsCache(); // Обновляем список чатов
+            ApiClient.invalidateMessagesCache(chatId); // Обновляем сообщения чата
+          }
+          
           // Если есть messageItem, обрабатываем как новое сообщение
           if (chatId && messageItem && onNewMessage) {
 

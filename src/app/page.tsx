@@ -3,12 +3,12 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { OptimizedSidebar } from "@/components/optimized/OptimizedSidebar";
 import { OptimizedChat } from "@/components/optimized/OptimizedChat";
 import { Suspense, useEffect } from "react";
-import { useChats } from "@/hooks/useChats";
+import { ChatProvider, useChatContext } from "@/providers/ChatProvider";
 
 function ChatContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { markChatAsRead } = useChats();
+  const { markChatAsRead } = useChatContext();
   
   // Получаем chatId из query параметров
   const chatId = searchParams.get('chat');
@@ -110,7 +110,9 @@ function ChatContent() {
 export default function Home() {
   return (
     <Suspense fallback={<div>Загрузка...</div>}>
-      <ChatContent />
+      <ChatProvider>
+        <ChatContent />
+      </ChatProvider>
     </Suspense>
   );
 }

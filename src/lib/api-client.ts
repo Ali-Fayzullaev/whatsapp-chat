@@ -31,6 +31,18 @@ async function cachedFetch<T>(
   return data;
 }
 export class ApiClient {
+  // Инвалидация кеша для чатов
+  static invalidateChatsCache() {
+    dataCache.invalidate('chats');
+    // Также очищаем кеш поиска
+    dataCache.invalidatePattern('chats_search_');
+  }
+
+  // Инвалидация кеша для сообщений конкретного чата
+  static invalidateMessagesCache(chatId: string) {
+    dataCache.invalidate(`messages-${chatId}`);
+  }
+
   // Получение списка чатов с кэшированием
   static async getChats(search?: string): Promise<Chat[]> {
     // Формируем параметры запроса
@@ -45,7 +57,7 @@ export class ApiClient {
       url,
       cacheKey,
       { cache: "no-store" },
-      search ? 10 * 1000 : 30 * 1000 // Меньше кэш для поиска
+      search ? 30 * 1000 : 2 * 60 * 1000 // Увеличиваем кеш: 30с для поиска, 2мин для обычных чатов
     );
     return data.map((raw: any, i: number) => {
       const rawId = raw?.chat_id || raw?.id;

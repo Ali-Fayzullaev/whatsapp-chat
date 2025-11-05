@@ -12,6 +12,7 @@ export function useChats() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isInitialLoaded, setIsInitialLoaded] = useState(false);
   
   // Интеграция с системой непрочитанных сообщений
   const { 
@@ -75,6 +76,38 @@ export function useChats() {
             chat.id !== chatId && chat.chat_id !== chatId
           );
           return [updatedChat, ...otherChats];
+        }
+        
+        // ВАЖНО: Если чат не найден, создаем новый чат для входящего сообщения
+        if (message.author === 'them') {
+          console.log(`🆕 Creating new chat for incoming message from ${chatId}`);
+          
+          // Извлекаем имя отправителя
+          const senderName = typeof message.sender === 'string' 
+            ? message.sender 
+            : typeof message.sender === 'object' && message.sender?.name
+            ? message.sender.name
+            : chatId.replace('@c.us', '');
+          
+          const newChat: Chat = {
+            id: chatId,
+            chat_id: chatId,
+            name: senderName,
+            avatarFallback: senderName.charAt(0).toUpperCase(),
+            lastMessage: {
+              text: message.text || '',
+              timestamp: message.timestamp || new Date().toISOString(),
+              sender: message.sender,
+              direction: message.direction,
+              id_message: message.id_message
+            },
+            time: message.timestamp || new Date().toISOString(),
+            unread: isNewUnread ? 1 : 0,
+            updatedAt: message.createdAt || Date.now(),
+            is_group: false
+          };
+          
+          return [newChat, ...prev];
         }
         
         return updated;
@@ -145,6 +178,7 @@ export function useChats() {
         });
         
         setChats(sortedChats);
+        setIsInitialLoaded(true); // Помечаем что данные загружены
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to load chats";
@@ -157,16 +191,56 @@ export function useChats() {
 
   // Функция поиска с дебаунсом
   const searchChats = useCallback(async (searchQuery: string) => {
-    await loadChats(false, searchQuery);
-  }, [loadChats]);
+    setLoading(true);
+    setError(null);
 
-  // Первичная загрузка чатов
+    try {
+      const chatsData = await ApiClient.getChats(searchQuery);
+      
+      startTransition(() => {
+        // Добавляем счетчики непрочитанных сообщений к чатам
+        const chatsWithUnread = chatsData.map(chat => ({
+          ...chat,
+          unread: getUnreadCount(chat.id || chat.chat_id)
+        }));
+        
+        // Сортируем чаты: сначала по непрочитанным, затем по времени последнего обновления
+        const sortedChats = chatsWithUnread.sort((a, b) => {
+          // Приоритет: чаты с непрочитанными сообщениями идут первыми
+          const aHasUnread = (a.unread ?? 0) > 0;
+          const bHasUnread = (b.unread ?? 0) > 0;
+          
+          if (aHasUnread !== bHasUnread) {
+            return bHasUnread ? 1 : -1; // Чаты с непрочитанными сначала
+          }
+          
+          // Если оба прочитаны или оба непрочитаны, сортируем по времени
+          const timeA = a.updatedAt || new Date(a.time || 0).getTime() || 0;
+          const timeB = b.updatedAt || new Date(b.time || 0).getTime() || 0;
+          return timeB - timeA; // Новые сверху
+        });
+        
+        setChats(sortedChats);
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to search chats";
+      setError(errorMessage);
+      console.error("Search chats error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [getUnreadCount]);
+
+  // Первичная загрузка чатов (только один раз при монтировании)
   useEffect(() => {
     loadChats();
-  }, [loadChats]);
+  }, []); // Убираем loadChats из зависимостей
 
   // HTTP polling fallback только когда WebSocket отключен или не работает
   useEffect(() => {
+    // Не запускаем polling если данные еще не загружены первый раз
+    if (!isInitialLoaded) return;
+    
     // HTTP polling используется только если:
     // 1. WebSocket полностью отключен в конфигурации ИЛИ
     // 2. WebSocket включен, но не подключен
@@ -175,9 +249,39 @@ export function useChats() {
     if (shouldUsePolling) {
       console.log("📡 Using HTTP polling for chats - WebSocket not connected");
       
-      const interval = setInterval(() => {
+      const interval = setInterval(async () => {
         if (document.visibilityState === "visible") {
-          loadChats(true); // silent reload
+          try {
+            const chatsData = await ApiClient.getChats();
+            
+            startTransition(() => {
+              // Добавляем счетчики непрочитанных сообщений к чатам
+              const chatsWithUnread = chatsData.map(chat => ({
+                ...chat,
+                unread: getUnreadCount(chat.id || chat.chat_id)
+              }));
+              
+              // Сортируем чаты: сначала по непрочитанным, затем по времени последнего обновления
+              const sortedChats = chatsWithUnread.sort((a, b) => {
+                // Приоритет: чаты с непрочитанными сообщениями идут первыми
+                const aHasUnread = (a.unread ?? 0) > 0;
+                const bHasUnread = (b.unread ?? 0) > 0;
+                
+                if (aHasUnread !== bHasUnread) {
+                  return bHasUnread ? 1 : -1; // Чаты с непрочитанными сначала
+                }
+                
+                // Если оба прочитаны или оба непрочитаны, сортируем по времени
+                const timeA = a.updatedAt || new Date(a.time || 0).getTime() || 0;
+                const timeB = b.updatedAt || new Date(b.time || 0).getTime() || 0;
+                return timeB - timeA; // Новые сверху
+              });
+              
+              setChats(sortedChats);
+            });
+          } catch (err) {
+            console.error("HTTP polling error:", err);
+          }
         }
       }, FEATURES.HTTP_POLLING_INTERVAL);
 
@@ -185,7 +289,7 @@ export function useChats() {
     } else {
       console.log("🔌 Using WebSocket for real-time chat updates - HTTP polling disabled");
     }
-  }, [isConnected, loadChats]);
+  }, [isConnected, isInitialLoaded, getUnreadCount]);
 
   // TODO: Добавить обновление счетчиков непрочитанных сообщений
   // после исправления циклических зависимостей

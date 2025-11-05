@@ -12,11 +12,12 @@ interface OptimisticMessage extends Message {
   pending?: boolean;
   failed?: boolean;
 }
-export function useMessages(chatId: string | null) {
+export function useMessages(chatId: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isMessagesLoaded, setIsMessagesLoaded] = useState(false);
   const { addToast } = useToast();
   
   // Интеграция с системой непрочитанных сообщений
@@ -90,6 +91,7 @@ export function useMessages(chatId: string | null) {
           pending: false 
         }));
         setMessages(cleanedMessages);
+        setIsMessagesLoaded(true); // Помечаем что сообщения загружены
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to load messages";
@@ -347,15 +349,17 @@ export function useMessages(chatId: string | null) {
   // Загружаем сообщения при смене чата
   useEffect(() => {
     if (chatId) {
+      setIsMessagesLoaded(false); // Сбрасываем флаг при смене чата
       loadMessages(chatId);
     } else {
       setMessages([]);
       setLoading(false);
+      setIsMessagesLoaded(false);
     }
   }, [chatId]);
   // HTTP polling fallback для сообщений только когда WebSocket отключен или не работает
   useEffect(() => {
-    if (!chatId || chatId.startsWith("temp:")) return;
+    if (!chatId || chatId.startsWith("temp:") || !isMessagesLoaded) return;
     
     // HTTP polling используется только если:
     // 1. WebSocket полностью отключен в конфигурации ИЛИ
@@ -375,7 +379,7 @@ export function useMessages(chatId: string | null) {
     } else {
       console.log(`🔌 Using WebSocket for real-time messages in chat ${chatId} - HTTP polling disabled`);
     }
-  }, [chatId, isConnected, loadMessages]);
+  }, [chatId, isConnected, isMessagesLoaded]);
 
   // Обогащаем сообщения данными об ответах из кэша
   const enrichedMessages = optimisticMessages.map(msg => ({

@@ -339,10 +339,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // Задержка для загрузки DOM и localStorage
+    // Задержка для загрузки DOM и localStorage, а также чтобы дать время для первичной загрузки данных
     const initTimer = setTimeout(() => {
       checkTokenAndConnect();
-    }, 100);
+    }, 2000); // Увеличиваем до 2 секунд
 
     // Отслеживаем изменения в localStorage (когда пользователь авторизуется)
     const handleStorageChange = (e: StorageEvent) => {

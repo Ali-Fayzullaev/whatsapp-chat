@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Menu, MessageCircleMore, MoreVertical, Plus, Search, LogOut, Settings, Archive, Users } from "lucide-react";
-import { useChats } from "@/hooks/useChats";
+import { useChatContext } from "@/providers/ChatProvider";
 import {
   Dialog,
   DialogContent,
@@ -131,7 +131,7 @@ export function OptimizedSidebar({ selectedChatId }: OptimizedSidebarProps) {
   const [showNewChatDialog, setShowNewChatDialog] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState("");
   const [isCreatingChat, setIsCreatingChat] = useState(false);
-  const { chats, loading, isPending, searchChats, markChatAsRead } = useChats();
+  const { chats, loading, isPending, searchChats, markChatAsRead } = useChatContext();
   const { addToast } = useToast();
   const router = useRouter();
 

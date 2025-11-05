@@ -8,7 +8,7 @@ import { Composer } from "@/components/chat/Composer";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useMessages } from "@/hooks/useMessages";
-import { useChats } from "@/hooks/useChats";
+import { useChatContext } from "@/providers/ChatProvider";
 import { useToast } from "@/components/ui/toast";
 import type { Message, ReplyMessage } from "@/components/chat/types";
 import { ArrowLeft, MessageCircleMore } from "lucide-react";
@@ -45,8 +45,8 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-  const { chats } = useChats();
-  const { messages, loading, sendMessage, sendMediaMessage, deleteMessage } = useMessages(chatId);
+  const { chats } = useChatContext();
+  const { messages, loading, sendMessage, sendMediaMessage, deleteMessage } = useMessages(chatId || "");
   // Сохранение состояния ответа в localStorage
   useEffect(() => {
     if (typeof window !== 'undefined' && chatId) {
