@@ -78,11 +78,26 @@ const ChatItem = memo(({
     >
       <div className="relative">
         <Avatar className="h-12 w-12 ring-1 ring-gray-200 dark:ring-gray-700">
-          <AvatarImage src={chat.avatarUrl} alt={chat.name} />
+          <AvatarImage 
+            src={
+              // Проверяем является ли чат группой (по ID заканчивающемуся на @g.us)
+              chat.id.endsWith('@g.us') 
+                ? "/groupAvatar.png"  // Аватар для групповых чатов
+                : "/userAvatar.jpg"   // Аватар для обычных чатов
+            } 
+            alt={chat.name} 
+          />
           <AvatarFallback className="bg-gradient-to-br from-green-400 to-green-600 text-white font-medium text-sm">
             {chat.avatarFallback}
           </AvatarFallback>
         </Avatar>
+        
+        {/* Индикатор типа чата */}
+        {chat.id.endsWith('@g.us') && (
+          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+            <Users className="h-2.5 w-2.5 text-white" />
+          </div>
+        )}
       </div>
 
       <div className="flex-1 min-w-0">
