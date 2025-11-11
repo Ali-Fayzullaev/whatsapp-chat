@@ -42,17 +42,37 @@ import {
   TooltipContent,
   TooltipTrigger 
 } from "@/components/ui/tooltip";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatMessageTime } from "@/utils/dateFormat";
 interface MessageBubbleProps {
   msg: Message;
   onReply?: (message: Message) => void;
   isReplying?: boolean;
   onDelete?: (messageId: string, remote?: boolean) => void;
+  isGroup?: boolean; // Добавляем флаг групповой чат
   onEdit?: (messageId: string, newText: string) => Promise<void>; // Добавляем onEdit
+  onUserClick?: (userId: string, userName: string) => void; // Обработчик клика по пользователю
 }
-export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: MessageBubbleProps) {
+export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit, isGroup, onUserClick }: MessageBubbleProps) {
   const isMe = msg.author === "me";
   const [imageError, setImageError] = useState(false);
+
+  // Отладочное логирование для групповых сообщений
+  if (!isMe && isGroup && msg.sender) {
+    console.log('👥 Group message display:', {
+      chatId: msg.chatId,
+      isGroup,
+      sender: msg.sender,
+      text: msg.text?.substring(0, 50) + '...'
+    });
+  } else if (!isMe && isGroup && !msg.sender) {
+    console.log('⚠️ Group message without sender:', {
+      chatId: msg.chatId,
+      isGroup,
+      msgData: msg,
+      text: msg.text?.substring(0, 50) + '...'
+    });
+  }
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteRemote, setDeleteRemote] = useState(false);
@@ -484,6 +504,49 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
   ];
   return (
     <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-2 sm:mb-3 group ${isReplying ? 'bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 -m-2' : ''}`}>
+      {/* Аватар пользователя (только для входящих сообщений в группах) */}
+      {!isMe && isGroup && msg.sender && (() => {
+        // Простая хэш функция для генерации цвета имени
+        const getHashColor = (str: string) => {
+          let hash = 0;
+          for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+          }
+          return Math.abs(hash) % 360;
+        };
+        
+        const senderName = msg.sender.full_name || msg.sender.name || msg.sender.id?.replace('@c.us', '').replace(/^\+/, '') || 'Пользователь';
+        const colorHue = getHashColor(msg.sender.id || senderName);
+        const avatarFallback = senderName.charAt(0).toUpperCase();
+        
+        const handleUserClick = () => {
+          if (onUserClick && msg.sender) {
+            onUserClick(msg.sender.id, senderName);
+          }
+        };
+        
+        return (
+          <div className="flex-shrink-0 mr-2">
+            <Avatar 
+              className="h-8 w-8 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all" 
+              onClick={handleUserClick}
+              title={`Открыть чат с ${senderName}`}
+            >
+              <AvatarImage 
+                src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(senderName)}&backgroundColor=${colorHue.toString(16).padStart(6, '0')}`}
+                alt={senderName}
+              />
+              <AvatarFallback 
+                className="text-xs font-semibold text-white"
+                style={{ backgroundColor: `hsl(${colorHue}, 65%, 45%)` }}
+              >
+                {avatarFallback}
+              </AvatarFallback>
+            </Avatar>
+          </div>
+        );
+      })()}
+
       {/* Контейнер сообщения */}
       <div className={`flex flex-col max-w-[90%] sm:max-w-[80%] md:max-w-[70%] lg:max-w-[60%] ${isMe ? 'items-end' : 'items-start'} min-w-0`}>
         {/* Десктопное контекстное меню */}
@@ -576,6 +639,41 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit }: Me
                 </div>
                 {/* Контент сообщения */}
                 <div className="space-y-1 sm:space-y-2">
+                  {/* Имя отправителя в группе (только название, без аватара) */}
+                  {!isMe && isGroup && msg.sender && (() => {
+                    // Простая хэш функция для генерации цвета имени
+                    const getHashColor = (str: string) => {
+                      let hash = 0;
+                      for (let i = 0; i < str.length; i++) {
+                        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+                      }
+                      return Math.abs(hash) % 360;
+                    };
+                    
+                    const senderName = msg.sender.full_name || msg.sender.name || msg.sender.id?.replace('@c.us', '').replace(/^\+/, '') || 'Пользователь';
+                    const colorHue = getHashColor(msg.sender.id || senderName);
+                    
+                    const handleUserClick = () => {
+                      if (onUserClick && msg.sender) {
+                        onUserClick(msg.sender.id, senderName);
+                      }
+                    };
+                    
+                    return (
+                      <div className="mb-1">
+                        {/* Имя пользователя */}
+                        <span 
+                          className="text-xs font-semibold cursor-pointer hover:underline" 
+                          style={{ color: `hsl(${colorHue}, 65%, 45%)` }}
+                          onClick={handleUserClick}
+                          title={`Открыть чат с ${senderName}`}
+                        >
+                          {senderName}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                  
                   {/* Сообщение, на которое отвечаем */}
                   {renderReply()}
                   {/* Медиа */}

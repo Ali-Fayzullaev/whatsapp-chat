@@ -122,6 +122,32 @@ export class ApiClient {
                  typeof timestamp === "string" ? Date.parse(timestamp) : Date.now();
       const direction = msg.direction || msg.type || "in";
       const isFromMe = direction === "out" || msg.from_me === true;
+      // Обрабатываем данные отправителя для групп
+      let senderInfo = undefined;
+      if (!isFromMe && msg.sender) {
+        if (typeof msg.sender === 'string') {
+          senderInfo = {
+            id: msg.sender,
+            name: msg.sender.replace('@c.us', '').replace(/^\+/, ''),
+            full_name: msg.sender_name || msg.pushname || null
+          };
+        } else if (typeof msg.sender === 'object') {
+          senderInfo = {
+            id: msg.sender.id || msg.sender.phone || '',
+            name: msg.sender.name || msg.sender.pushname || '',
+            full_name: msg.sender.full_name || msg.sender.pushname || msg.sender.name || null
+          };
+        }
+      } else if (!isFromMe && (msg.from || msg.participant)) {
+        // Альтернативные поля для отправителя в группах
+        const senderId = msg.from || msg.participant;
+        senderInfo = {
+          id: senderId,
+          name: msg.pushname || msg.sender_name || senderId.replace('@c.us', '').replace(/^\+/, ''),
+          full_name: msg.pushname || msg.sender_name || null
+        };
+      }
+
       const message: Message = {
         id: baseId,
         chatId,
@@ -134,6 +160,10 @@ export class ApiClient {
         createdAt: ts,
         status: msg.status || "sent",
         isRead: true,
+        sender: senderInfo,
+        direction: direction,
+        timestamp: msg.timestamp,
+        id_message: msg.id_message
       };
       // Обработка медиа
       if (msg.media) {

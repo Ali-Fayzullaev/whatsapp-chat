@@ -10,6 +10,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useMessages } from "@/hooks/useMessages";
 import { useChatContext } from "@/providers/ChatProvider";
 import { useToast } from "@/components/ui/toast";
+import { useTypingIndicator } from "@/hooks/useTypingIndicator";
+import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import type { Message, ReplyMessage } from "@/components/chat/types";
 import { ArrowLeft, MessageCircleMore } from "lucide-react";
 const MemoizedMessageBubble = memo(MessageBubble, (prevProps, nextProps) => {
@@ -19,8 +21,11 @@ const MemoizedMessageBubble = memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.msg.status === nextProps.msg.status &&
     prevProps.msg.pending === nextProps.msg.pending &&
     prevProps.isReplying === nextProps.isReplying &&
+    prevProps.isGroup === nextProps.isGroup &&
+    prevProps.onUserClick === nextProps.onUserClick &&
     JSON.stringify(prevProps.msg.media) === JSON.stringify(nextProps.msg.media) &&
-    JSON.stringify(prevProps.msg.replyTo) === JSON.stringify(nextProps.msg.replyTo)
+    JSON.stringify(prevProps.msg.replyTo) === JSON.stringify(nextProps.msg.replyTo) &&
+    JSON.stringify(prevProps.msg.sender) === JSON.stringify(nextProps.msg.sender)
   );
 });
 interface OptimizedChatProps {
@@ -47,6 +52,7 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   const router = useRouter();
   const { chats } = useChatContext();
   const { messages, loading, sendMessage, sendMediaMessage, deleteMessage } = useMessages(chatId || "");
+  const { typingUsers } = useTypingIndicator(chatId || "");
   // Сохранение состояния ответа в localStorage
   useEffect(() => {
     if (typeof window !== 'undefined' && chatId) {
@@ -58,6 +64,46 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
     }
   }, [replyingTo, chatId]);
   const { addToast } = useToast();
+  
+  // Обработчик клика по пользователю в группе для открытия личного чата
+  const handleUserClick = useCallback(async (userId: string, userName: string) => {
+    try {
+      // Нормализуем ID пользователя для создания личного чата
+      const normalizedUserId = userId.includes('@c.us') ? userId : `${userId}@c.us`;
+      
+      // Проверяем, есть ли уже такой чат в списке
+      const existingChat = chats.find(chat => 
+        (chat.id === normalizedUserId || chat.chat_id === normalizedUserId) && !chat.is_group
+      );
+      
+      if (existingChat) {
+        // Если чат уже существует, переходим к нему
+        router.push(`/?chat=${encodeURIComponent(existingChat.id)}`, { scroll: false });
+        addToast({
+          type: "success",
+          title: "Переход к чату",
+          description: `Открыт чат с ${userName}`
+        });
+      } else {
+        // Если чата нет, создаем новый временный чат
+        const tempChatId = `temp:${normalizedUserId.replace('@c.us', '')}`;
+        router.push(`/?chat=${encodeURIComponent(tempChatId)}`, { scroll: false });
+        addToast({
+          type: "success",
+          title: "Новый чат",
+          description: `Создан чат с ${userName}`
+        });
+      }
+    } catch (error) {
+      console.error('Error opening user chat:', error);
+      addToast({
+        type: "error",
+        title: "Ошибка",
+        description: "Не удалось открыть чат с пользователем"
+      });
+    }
+  }, [chats, router, addToast]);
+
   const handleBackToSidebar = useCallback(() => {
     if (onBackToSidebar) {
       onBackToSidebar();
@@ -297,9 +343,18 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
                 onReply={handleReplyToMessage}
                 isReplying={replyingTo?.id === message.id}
                 onDelete={handleDeleteMessage}
+                isGroup={selectedChat?.is_group}
+                onUserClick={handleUserClick}
               />
             ))
           )}
+          
+          {/* Индикатор печати */}
+          <TypingIndicator 
+            typingUsers={typingUsers} 
+            isGroup={selectedChat?.is_group || false}
+          />
+          
           <div ref={bottomRef} />
         </div>
       </ScrollArea>

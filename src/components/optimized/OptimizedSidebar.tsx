@@ -104,6 +104,7 @@ const ChatItem = memo(({
         
         <div className="flex items-center justify-between w-[300px]">
           <p className="text-[13px] text-gray-600 dark:text-gray-400 truncate flex-1">
+            {/* TODO: Здесь можно добавить проверку на печать в группах */}
             {typeof chat.lastMessage === 'string' 
               ? chat.lastMessage 
               : chat.lastMessage?.text || "Нажмите, чтобы начать общение"}

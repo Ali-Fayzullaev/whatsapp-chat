@@ -73,6 +73,47 @@ export function useWebSocketChats({
                 };
               }
             }
+            // Обрабатываем данные отправителя для групп
+            let senderInfo = null;
+            if (messageItem.sender) {
+              // Попробуем разные форматы sender
+              if (typeof messageItem.sender === 'string') {
+                senderInfo = {
+                  id: messageItem.sender,
+                  name: messageItem.sender.replace('@c.us', '').replace(/^\+/, ''),
+                  full_name: messageItem.sender_name || messageItem.pushname || null
+                };
+              } else if (typeof messageItem.sender === 'object') {
+                senderInfo = {
+                  id: messageItem.sender.id || messageItem.sender.phone || '',
+                  name: messageItem.sender.name || messageItem.sender.pushname || '',
+                  full_name: messageItem.sender.full_name || messageItem.sender.pushname || messageItem.sender.name || null
+                };
+              }
+            } else if (messageItem.from || messageItem.participant) {
+              // Альтернативные поля для отправителя
+              const senderId = messageItem.from || messageItem.participant;
+              senderInfo = {
+                id: senderId,
+                name: messageItem.pushname || messageItem.sender_name || senderId.replace('@c.us', '').replace(/^\+/, ''),
+                full_name: messageItem.pushname || messageItem.sender_name || null
+              };
+            }
+
+            // Логирование для отладки групповых сообщений
+            if (messageItem.direction === 'in' && senderInfo) {
+              console.log('📝 Group message sender info:', {
+                chatId,
+                senderId: senderInfo.id,
+                senderName: senderInfo.name,
+                senderFullName: senderInfo.full_name,
+                rawSender: messageItem.sender,
+                rawFrom: messageItem.from,
+                rawParticipant: messageItem.participant,
+                pushname: messageItem.pushname
+              });
+            }
+
             // Преобразуем messageItem в формат Message
             const message: Message = {
               id: messageItem.id_message || Date.now().toString(),
@@ -89,7 +130,7 @@ export function useWebSocketChats({
               timestamp: messageItem.timestamp,
               id_message: messageItem.id_message,
               media: messageItem.media,
-              sender: messageItem.sender,
+              sender: senderInfo || undefined,
               replyTo
             };
             onNewMessage(chatId, message);
