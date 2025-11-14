@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { useChatContext } from "@/providers/ChatProvider";
 import type { Chat } from "@/components/chat/types";
+import { DEFAULT_GROUP_AVATAR, DEFAULT_USER_AVATAR } from "@/lib/avatar-assets";
 import {
   Loader2,
   Plus,
@@ -78,7 +79,7 @@ const getAvatarSource = (chat: Chat): string | undefined => {
   }
   const chatId = chat.id || chat.chat_id || "";
   const isGroup = chat.is_group || chatId.endsWith("@g.us");
-  return isGroup ? "/groupAvatar.png" : "/userAvatar.jpg";
+  return isGroup ? DEFAULT_GROUP_AVATAR : DEFAULT_USER_AVATAR;
 };
 
 const getAvatarFallback = (chat: Chat): string => {

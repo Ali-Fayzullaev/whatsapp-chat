@@ -22,6 +22,7 @@ import {
 import { useDeleteChat } from "@/hooks/useDeleteChat";
 import { useRouter } from "next/navigation";
 import { useWebSocket } from "@/providers/WebSocketProvider";
+import { DEFAULT_GROUP_AVATAR, DEFAULT_USER_AVATAR } from "@/lib/avatar-assets";
 import type { Chat } from "./types";
 
 interface ChatHeaderProps {
@@ -101,6 +102,19 @@ export  function ChatHeader({
     return "онлайн";
   };
 
+  const getAvatarSrc = () => {
+    if (chat?.avatarUrl && chat.avatarUrl.trim().length > 0) {
+      return chat.avatarUrl;
+    }
+
+    const normalizedId = chat?.chat_id || chat?.id || chatId;
+    const isGroupChat = Boolean(chat?.is_group) || Boolean(
+      normalizedId && (normalizedId.endsWith("@g.us") || normalizedId.includes("@broadcast"))
+    );
+
+    return isGroupChat ? DEFAULT_GROUP_AVATAR : DEFAULT_USER_AVATAR;
+  };
+
   // Функция для получения аватара
   const getAvatarFallback = () => {
     const name = getDisplayName();
@@ -128,13 +142,10 @@ export  function ChatHeader({
         {/* Аватар с индикатором онлайн */}
         <div className="relative">
           <Avatar className="h-11 w-11 ring-2 ring-gray-200 dark:ring-gray-600">
-            {chat?.avatarUrl ? (
-              <AvatarImage src={chat.avatarUrl} alt={getDisplayName()} />
-            ) : (
-              <AvatarFallback className="bg-gradient-to-br from-[#00a884] to-green-600 text-white font-medium text-sm">
-                {getAvatarFallback()}
-              </AvatarFallback>
-            )}
+            <AvatarImage src={getAvatarSrc()} alt={getDisplayName()} />
+            <AvatarFallback className="bg-gradient-to-br from-[#00a884] to-green-600 text-white font-medium text-sm">
+              {getAvatarFallback()}
+            </AvatarFallback>
           </Avatar>
         </div>
 

@@ -30,6 +30,31 @@ const MemoizedMessageBubble = memo(MessageBubble, (prevProps, nextProps) => {
     JSON.stringify(prevProps.msg.sender) === JSON.stringify(nextProps.msg.sender)
   );
 });
+
+const ChatWallpaper = () => (
+  <>
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 bg-repeat opacity-90 dark:hidden"
+      style={{
+        backgroundImage: "url('/fonLight.jpg')",
+        backgroundSize: "360px 360px",
+      }}
+    />
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 hidden bg-repeat opacity-80 dark:block"
+      style={{
+        backgroundImage: "url('/fon.png')",
+        backgroundSize: "360px 360px",
+      }}
+    />
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 bg-white/40 dark:bg-black/40"
+    />
+  </>
+);
 interface OptimizedChatProps {
   chatId: string | null;
   onBackToSidebar?: () => void;
@@ -261,25 +286,21 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
             <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
           </div>
         </div>
-        <div 
-          className="flex-1 p-4 space-y-4" 
-          style={{ 
-            backgroundImage: `url('/fon_chat.jpeg')`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-            backgroundAttachment: "fixed"
-          }}
-        >
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className={`flex ${i % 2 ? "justify-end" : "justify-start"}`}>
-              <div className={`h-14 rounded-2xl animate-pulse ${
-                i % 2 
-                  ? "w-52 bg-[#00a884]/20" 
-                  : "w-48 bg-white dark:bg-gray-800 shadow-sm"
-              }`}></div>
-            </div>
-          ))}
+        <div className="relative flex-1 p-4">
+          <ChatWallpaper />
+          <div className="relative space-y-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className={`flex ${i % 2 ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`h-14 rounded-2xl animate-pulse ${
+                    i % 2
+                      ? "w-52 bg-[#00a884]/20"
+                      : "w-48 bg-white/90 dark:bg-gray-800/80 shadow-sm"
+                  }`}
+                ></div>
+              </div>
+            ))}
+          </div>
         </div>
         <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
           <div className="flex items-end gap-3">
@@ -336,21 +357,13 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
         </div>
       )}
         <ScrollArea
-          className="flex-1 bg-[#ECE5DD] dark:bg-gray-900/50"
-          style={{
-            backgroundImage: `url("/logoChat.jpg")`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-            backgroundAttachment: "fixed"
-          }}
+          className="flex-1 bg-[#ECE5DD] dark:bg-[#0b141a]"
           ref={(el) => {
             const viewport = el?.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
             scrollContainerRef.current = viewport;
           }}
         >
-          {/* Полупрозрачный слой для лучшей читаемости */}
-          <div className="absolute inset-0 bg-white/30 dark:bg-black/20 pointer-events-none"></div>
+          <ChatWallpaper />
           <div className="relative px-3 sm:px-4 md:px-6 py-2 sm:py-3 space-y-1 sm:space-y-2">
           {messages.length === 0 ? (
             <div className="text-center py-12">

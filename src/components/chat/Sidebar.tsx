@@ -26,6 +26,7 @@ import { Chat } from "./types";
 import { HeaderMenu } from "./menus";
 import { WebSocketConnectionStatus } from "../WebSocketConnectionStatus";
 import { useState } from "react";
+import { DEFAULT_GROUP_AVATAR, DEFAULT_USER_AVATAR } from "@/lib/avatar-assets";
 
 const formatTime = (timestamp: string) => {
   const date = new Date(timestamp);
@@ -212,6 +213,12 @@ export function Sidebar({
               const chatId = chat.id || chat.chat_id;
               const chat_name = chat.lastMessage?.sender?.name || chat.name || chatId?.replace('@c.us', '') || 'Неизвестный';
               if (!chatId) return null;
+              const isGroupChat = Boolean(chat.is_group) || chatId.endsWith("@g.us");
+              const avatarSrc = chat.avatarUrl && chat.avatarUrl.trim().length > 0
+                ? chat.avatarUrl
+                : isGroupChat
+                  ? DEFAULT_GROUP_AVATAR
+                  : DEFAULT_USER_AVATAR;
 
               return (
                 <div
@@ -229,16 +236,13 @@ export function Sidebar({
                       onClick={() => setSelectedId(chatId)}
                     >
                       <Avatar className="h-12 w-12">
-                        {chat.avatarUrl ? (
-                          <AvatarImage src={chat.avatarUrl} alt={chat.name} />
-                        ) : (
-                          <AvatarFallback className="bg-green-500 text-white">
-                            {chat.avatarFallback ||
-                              (typeof chat.name === "string"
-                                ? chat.name.charAt(0)
-                                : "?")}
-                          </AvatarFallback>
-                        )}
+                        <AvatarImage src={avatarSrc} alt={chat_name} />
+                        <AvatarFallback className="bg-green-500 text-white">
+                          {chat.avatarFallback ||
+                            (typeof chat.name === "string" && chat.name.length > 0
+                              ? chat.name.charAt(0)
+                              : chatId.charAt(0).toUpperCase() || "?")}
+                        </AvatarFallback>
                       </Avatar>
 
                       <div className="flex-1 min-w-0">
