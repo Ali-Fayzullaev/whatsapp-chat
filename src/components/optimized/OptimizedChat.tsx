@@ -23,6 +23,8 @@ const MemoizedMessageBubble = memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.isReplying === nextProps.isReplying &&
     prevProps.isGroup === nextProps.isGroup &&
     prevProps.onUserClick === nextProps.onUserClick &&
+    prevProps.onReplyPreviewClick === nextProps.onReplyPreviewClick &&
+    prevProps.isHighlighted === nextProps.isHighlighted &&
     JSON.stringify(prevProps.msg.media) === JSON.stringify(nextProps.msg.media) &&
     JSON.stringify(prevProps.msg.replyTo) === JSON.stringify(nextProps.msg.replyTo) &&
     JSON.stringify(prevProps.msg.sender) === JSON.stringify(nextProps.msg.sender)
@@ -48,11 +50,13 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
   });
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const { chats } = useChatContext();
   const { messages, loading, sendMessage, sendMediaMessage, deleteMessage } = useMessages(chatId || "");
   const { typingUsers } = useTypingIndicator(chatId || "");
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   // Сохранение состояния ответа в localStorage
   useEffect(() => {
     if (typeof window !== 'undefined' && chatId) {
@@ -156,6 +160,25 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
     if (!chatId) return;
     await deleteMessage(messageId, remote);
   }, [chatId, deleteMessage]);
+  const handleReplyPreviewClick = useCallback((messageId: string) => {
+    const element = document.getElementById(`message-${messageId}`);
+
+    if (!element) {
+      console.warn(`Message with id ${messageId} not found for preview navigation`);
+      return;
+    }
+
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedMessageId(messageId);
+
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+    }
+
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedMessageId((current) => (current === messageId ? null : current));
+    }, 2000);
+  }, []);
   const handleFileSelect = useCallback(async (file: File) => {
     if (!chatId) return;
     
@@ -213,7 +236,15 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
         description: error instanceof Error ? error.message : 'Неизвестная ошибка'
       });
     }
-  }, [chatId, sendMediaMessage, replyingTo]);
+  }, [chatId, sendMediaMessage, replyingTo, addToast]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (loading && messages.length === 0) {
     return (
@@ -351,6 +382,8 @@ export function OptimizedChat({ chatId, onBackToSidebar }: OptimizedChatProps) {
                 onDelete={handleDeleteMessage}
                 isGroup={selectedChat?.is_group}
                 onUserClick={handleUserClick}
+                onReplyPreviewClick={handleReplyPreviewClick}
+                isHighlighted={highlightedMessageId === message.id}
               />
             ))
           )}

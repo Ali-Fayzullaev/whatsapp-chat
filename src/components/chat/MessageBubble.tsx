@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import type { Message } from "./types";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -52,8 +52,10 @@ interface MessageBubbleProps {
   isGroup?: boolean; // Добавляем флаг групповой чат
   onEdit?: (messageId: string, newText: string) => Promise<void>; // Добавляем onEdit
   onUserClick?: (userId: string, userName: string) => void; // Обработчик клика по пользователю
+  onReplyPreviewClick?: (messageId: string) => void; // Переход к исходному сообщению
+  isHighlighted?: boolean; // Подсветка сообщения при переходе
 }
-export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit, isGroup, onUserClick }: MessageBubbleProps) {
+export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit, isGroup, onUserClick, onReplyPreviewClick, isHighlighted }: MessageBubbleProps) {
   const isMe = msg.author === "me";
   const [imageError, setImageError] = useState(false);
 
@@ -117,17 +119,26 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit, isGr
     setShowMenu(false);
   };
   const handleSaveEdit = async () => {
-    if (!onEdit || editText.trim() === msg.text) {
+    const trimmedText = editText.trim();
+
+    if (!onEdit) {
+      console.warn("onEdit function is not provided");
       setIsEditing(false);
       return;
     }
-    setIsEditLoading(true);
+
+    if (!trimmedText || trimmedText === msg.text) {
+      setIsEditing(false);
+      return;
+    }
+
     try {
-      await onEdit(msg.id, editText.trim());
+      setIsEditLoading(true);
+      await onEdit(msg.id, trimmedText);
       setIsEditing(false);
     } catch (error) {
       console.error("Failed to edit message:", error);
-      // Можно добавить уведомление об ошибке
+      // TODO: surface error to user via toast
     } finally {
       setIsEditLoading(false);
     }
@@ -203,8 +214,34 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit, isGr
   // Рендеринг сообщения, на которое отвечают (как в WhatsApp)
   const renderReply = () => {
     if (!msg.replyTo) return null;
+
+    type ReplyReference = typeof msg.replyTo & Partial<Record<"id_message" | "message_id", string>>;
+    const replyReference = msg.replyTo as ReplyReference;
+    const originalMessageId = replyReference.id
+      || replyReference.id_message
+      || replyReference.message_id;
+    const isClickable = Boolean(originalMessageId && onReplyPreviewClick);
+
+    const handlePreviewClick = () => {
+      if (isClickable && originalMessageId) {
+        onReplyPreviewClick?.(originalMessageId);
+      }
+    };
+
     return (
-      <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg border-l-4 border-blue-500">
+      <div
+        className={`mb-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg border-l-4 border-blue-500 ${isClickable ? 'cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors' : ''}`}
+        onClick={handlePreviewClick}
+        role={isClickable ? 'button' : undefined}
+        tabIndex={isClickable ? 0 : undefined}
+        onKeyDown={(event) => {
+          if (!isClickable) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handlePreviewClick();
+          }
+        }}
+      >
         <div className="flex items-center gap-2 mb-1">
           <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
           <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
@@ -548,7 +585,11 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit, isGr
       })()}
 
       {/* Контейнер сообщения */}
-      <div className={`flex flex-col max-w-[90%] sm:max-w-[80%] md:max-w-[70%] lg:max-w-[60%] ${isMe ? 'items-end' : 'items-start'} min-w-0`}>
+      <div
+        id={`message-${msg.id}`}
+        data-message-id={msg.id}
+        className={`flex flex-col max-w-[90%] sm:max-w-[80%] md:max-w-[70%] lg:max-w-[60%] ${isMe ? 'items-end' : 'items-start'} min-w-0 ${isHighlighted ? 'ring-2 ring-emerald-400/80 shadow-lg shadow-emerald-500/20 transition-all duration-500' : ''}`}
+      >
         {/* Десктопное контекстное меню */}
         <ContextMenu menuItems={menuItems}>
           {/* Мобильное контекстное меню */}
