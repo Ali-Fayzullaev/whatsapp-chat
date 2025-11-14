@@ -73,13 +73,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cha
     console.log("External API URL:", url);
 
     // 🔹 ПРАВИЛЬНАЯ СТРУКТУРА ДЛЯ ВНЕШНЕГО API
-    const payload: any = {
-      text: text
+    const payload: Record<string, any> = {
+      text
     };
 
     // 🔹 ПРАВИЛЬНО ПЕРЕДАЕМ ИНФОРМАЦИЮ ОБ ОТВЕТЕ
-    if (reply_to?.message_id) {
-      payload.replyToMessageId = reply_to.message_id; // 🔹 ИЛИ ТО ПОЛЕ, КОТОРОЕ ЖДЕТ ВАШ БЭКЕНД
+    if (reply_to) {
+      // reply_to может прийти как строка или как объект с полем id/id_message
+      if (typeof reply_to === "string") {
+        payload.reply_to = reply_to;
+      } else if (typeof reply_to === "object") {
+        const replyId = reply_to.id_message || reply_to.id || reply_to.message_id;
+        if (replyId) {
+          payload.reply_to = replyId;
+        }
+      }
     }
 
     console.log("Sending payload to external API:", payload);
