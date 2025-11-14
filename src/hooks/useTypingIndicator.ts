@@ -32,8 +32,15 @@ export function useTypingIndicator(chatId: string) {
     if (!data || data.chat_id !== chatId) return;
 
     const event = data as TypingEvent;
-    const userId = event.user_id;
-    const userName = event.user_name || userId.replace('@c.us', '');
+    const rawUserId = event.user_id;
+
+    if (!rawUserId && !event.user_name) {
+      console.warn("⚠️ typing event without user identifier", event);
+      return;
+    }
+
+    const userId = rawUserId || `temp-${event.user_name?.toLowerCase().replace(/\s+/g, '-') || 'unknown'}`;
+    const userName = event.user_name?.trim() || userId.replace('@c.us', '');
 
     if (event.type === 'typing.start') {
       setTypingUsers(prev => {

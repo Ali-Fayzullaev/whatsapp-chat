@@ -1,6 +1,6 @@
 ﻿"use client";
 import { useSearchParams, useRouter } from "next/navigation";
-import { OptimizedSidebar } from "@/components/optimized/OptimizedSidebar";
+import OptimizedSidebar from "@/components/optimized/OptimizedSidebar";
 import { OptimizedChat } from "@/components/optimized/OptimizedChat";
 import { Suspense, useEffect } from "react";
 import { ChatProvider, useChatContext } from "@/providers/ChatProvider";
