@@ -1,7 +1,9 @@
 // src/providers/WebSocketProvider.tsx
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { FEATURES } from "@/config/features";
+import { useAuth } from "@/providers/AuthProvider";
 
 // Константы для WebSocket
 const WS_RECONNECT_DELAY = 3000; // Уменьшили до 3 секунд
@@ -36,6 +38,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected');
   const [lastMessage, setLastMessage] = useState<any>(null);
+  const { isAuthenticated } = useAuth();
 
   // Refs для WebSocket и обработчиков
   const wsConnectionRef = useRef<WebSocket | null>(null);
@@ -382,6 +385,12 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       connectWebSocket();
     }
   }, [connectWebSocket]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      startConnection();
+    }
+  }, [isAuthenticated, startConnection]);
 
   const value: WebSocketContextType = {
     isConnected,
