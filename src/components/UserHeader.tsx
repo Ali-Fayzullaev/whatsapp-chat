@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LogOut, User, Settings, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
-import { WebSocketStatusIndicator } from './WebSocketStatusIndicator';
 
 export function UserHeader() {
   const { user, logout, isAuthenticated } = useAuth();
@@ -55,9 +54,6 @@ export function UserHeader() {
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
             @{user.username || 'unknown'}
-          </div>
-          <div className="mt-1">
-            <WebSocketStatusIndicator />
           </div>
         </div>
       </div>
