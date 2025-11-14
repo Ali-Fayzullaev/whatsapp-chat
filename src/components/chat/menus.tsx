@@ -17,8 +17,6 @@ export function HeaderMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem>Новая группа</DropdownMenuItem>
-        <DropdownMenuItem>Настройки</DropdownMenuItem>
         <DropdownMenuItem>Тема</DropdownMenuItem>
         <DropdownMenuItem>Выйти</DropdownMenuItem>
       </DropdownMenuContent>

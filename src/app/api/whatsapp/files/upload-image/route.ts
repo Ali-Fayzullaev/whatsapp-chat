@@ -58,7 +58,6 @@ export async function POST(req: NextRequest) {
       body: externalFormData,
       headers: {
         'Authorization': `Bearer ${token}`,
-        // НЕ добавляем Content-Type - браузер сам установит с boundary
       },
     });
 

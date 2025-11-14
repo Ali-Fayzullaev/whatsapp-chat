@@ -12,9 +12,6 @@ import {
   MoreHorizontal,
   Trash2,
   Edit3,
-  Save,
-  X,
-  Forward,
   Copy
 } from "lucide-react";
 import type { Message } from "./types";

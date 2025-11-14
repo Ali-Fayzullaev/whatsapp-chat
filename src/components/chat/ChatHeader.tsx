@@ -170,18 +170,6 @@ export  function ChatHeader({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 bg-white dark:bg-muted">
-              <DropdownMenuItem>
-                Данные контакта
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                Выбрать сообщения
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                Закрепить чат
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                Очистить сообщения
-              </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={() => setShowDeleteDialog(true)}
                 className="text-red-600 focus:text-red-600"

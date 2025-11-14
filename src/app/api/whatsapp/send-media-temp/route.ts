@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        url: media_url,  // 👈 Внешний API ожидает 'url'
+        url: media_url,
         caption: caption || "",
         reply_to,
       }),
