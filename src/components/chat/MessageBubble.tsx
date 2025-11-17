@@ -39,8 +39,8 @@ import {
   TooltipContent,
   TooltipTrigger 
 } from "@/components/ui/tooltip";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatMessageTime } from "@/utils/dateFormat";
+import { DEFAULT_USER_AVATAR } from "@/lib/avatar-assets";
 interface MessageBubbleProps {
   msg: Message;
   onReply?: (message: Message) => void;
@@ -540,43 +540,27 @@ export function MessageBubble({ msg, onReply, isReplying, onDelete, onEdit, isGr
     <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-2 sm:mb-3 group ${isReplying ? 'bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 -m-2' : ''}`}>
       {/* Аватар пользователя (только для входящих сообщений в группах) */}
       {!isMe && isGroup && msg.sender && (() => {
-        // Простая хэш функция для генерации цвета имени
-        const getHashColor = (str: string) => {
-          let hash = 0;
-          for (let i = 0; i < str.length; i++) {
-            hash = str.charCodeAt(i) + ((hash << 5) - hash);
-          }
-          return Math.abs(hash) % 360;
-        };
-        
         const senderName = msg.sender.full_name || msg.sender.name || msg.sender.id?.replace('@c.us', '').replace(/^\+/, '') || 'Пользователь';
-        const colorHue = getHashColor(msg.sender.id || senderName);
-        const avatarFallback = senderName.charAt(0).toUpperCase();
-        
+
         const handleUserClick = () => {
           if (onUserClick && msg.sender) {
             onUserClick(msg.sender.id, senderName);
           }
         };
-        
+
         return (
           <div className="flex-shrink-0 mr-2">
-            <Avatar 
-              className="h-8 w-8 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all" 
+            <img
+              src={DEFAULT_USER_AVATAR}
+              alt={senderName}
+              className="h-8 w-8 cursor-pointer rounded-full object-cover transition-all hover:ring-2 hover:ring-blue-300"
               onClick={handleUserClick}
+              onError={(event) => {
+                event.currentTarget.onerror = null;
+                event.currentTarget.src = DEFAULT_USER_AVATAR;
+              }}
               title={`Открыть чат с ${senderName}`}
-            >
-              <AvatarImage 
-                src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(senderName)}&backgroundColor=${colorHue.toString(16).padStart(6, '0')}`}
-                alt={senderName}
-              />
-              <AvatarFallback 
-                className="text-xs font-semibold text-white"
-                style={{ backgroundColor: `hsl(${colorHue}, 65%, 45%)` }}
-              >
-                {avatarFallback}
-              </AvatarFallback>
-            </Avatar>
+            />
           </div>
         );
       })()}

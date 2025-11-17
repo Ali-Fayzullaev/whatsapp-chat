@@ -6,6 +6,12 @@ import { useWebSocketChats } from "./useWebSocketChats";
 import { useUnreadMessages } from "./useUnreadMessages";
 import { FEATURES } from "@/config/features";
 import type { Chat, Message } from "@/components/chat/types";
+import { DEFAULT_GROUP_AVATAR, DEFAULT_USER_AVATAR } from "@/lib/avatar-assets";
+
+const ensureAvatar = (chat: Chat): Chat => {
+  const avatar = chat.avatarUrl || (chat.is_group ? DEFAULT_GROUP_AVATAR : DEFAULT_USER_AVATAR);
+  return avatar === chat.avatarUrl ? chat : { ...chat, avatarUrl: avatar };
+};
 
 export function useChats() {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -26,9 +32,10 @@ export function useChats() {
 
   // WebSocket обработчики
   const handleChatUpdated = useCallback((updatedChat: Chat) => {
+    const normalizedChat = ensureAvatar(updatedChat);
     startTransition(() => {
       setChats(prev => prev.map(chat => 
-        chat.id === updatedChat.id ? { ...chat, ...updatedChat } : chat
+        chat.id === normalizedChat.id ? { ...chat, ...normalizedChat } : ensureAvatar(chat)
       ));
     });
   }, []);
@@ -104,24 +111,28 @@ export function useChats() {
             time: message.timestamp || new Date().toISOString(),
             unread: isNewUnread ? 1 : 0,
             updatedAt: message.createdAt || Date.now(),
-            is_group: false
+            is_group: false,
+            avatarUrl: DEFAULT_USER_AVATAR
           };
           
-          return [newChat, ...prev];
+          return [newChat, ...prev.map(existing => ensureAvatar(existing))];
         }
         
-        return updated;
+        return updated.map(existing => ensureAvatar(existing));
       });
     });
   }, [addUnreadMessage, getUnreadCount]);
 
   const handleNewChat = useCallback((newChat: Chat) => {
+    const normalizedChat = ensureAvatar(newChat);
     startTransition(() => {
       setChats(prev => {
         // Проверяем, не существует ли уже такой чат
-        const exists = prev.some(chat => chat.id === newChat.id);
-        if (exists) return prev;
-        return [newChat, ...prev];
+        const exists = prev.some(chat => chat.id === normalizedChat.id);
+        if (exists) {
+          return prev.map(chat => chat.id === normalizedChat.id ? { ...chat, ...normalizedChat } : ensureAvatar(chat));
+        }
+        return [normalizedChat, ...prev.map(existing => ensureAvatar(existing))];
       });
     });
   }, []);
@@ -134,7 +145,7 @@ export function useChats() {
 
   const handleChatsUpdate = useCallback((newChats: Chat[]) => {
     startTransition(() => {
-      setChats(newChats);
+      setChats(newChats.map(ensureAvatar));
     });
   }, []);
 
@@ -156,7 +167,7 @@ export function useChats() {
       
       startTransition(() => {
         // Добавляем счетчики непрочитанных сообщений к чатам
-        const chatsWithUnread = chatsData.map(chat => ({
+        const chatsWithUnread = chatsData.map(chat => ensureAvatar({
           ...chat,
           unread: getUnreadCount(chat.id || chat.chat_id)
         }));
@@ -177,7 +188,7 @@ export function useChats() {
           return timeB - timeA; // Новые сверху
         });
         
-        setChats(sortedChats);
+        setChats(sortedChats.map(ensureAvatar));
         setIsInitialLoaded(true); // Помечаем что данные загружены
       });
     } catch (err) {
@@ -199,7 +210,7 @@ export function useChats() {
       
       startTransition(() => {
         // Добавляем счетчики непрочитанных сообщений к чатам
-        const chatsWithUnread = chatsData.map(chat => ({
+        const chatsWithUnread = chatsData.map(chat => ensureAvatar({
           ...chat,
           unread: getUnreadCount(chat.id || chat.chat_id)
         }));
@@ -220,7 +231,7 @@ export function useChats() {
           return timeB - timeA; // Новые сверху
         });
         
-        setChats(sortedChats);
+        setChats(sortedChats.map(ensureAvatar));
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to search chats";
@@ -256,7 +267,7 @@ export function useChats() {
             
             startTransition(() => {
               // Добавляем счетчики непрочитанных сообщений к чатам
-              const chatsWithUnread = chatsData.map(chat => ({
+              const chatsWithUnread = chatsData.map(chat => ensureAvatar({
                 ...chat,
                 unread: getUnreadCount(chat.id || chat.chat_id)
               }));
@@ -277,7 +288,7 @@ export function useChats() {
                 return timeB - timeA; // Новые сверху
               });
               
-              setChats(sortedChats);
+              setChats(sortedChats.map(ensureAvatar));
             });
           } catch (err) {
             console.error("HTTP polling error:", err);
@@ -298,7 +309,7 @@ export function useChats() {
   const updateChat = (chatId: string, updates: Partial<Chat>) => {
     startTransition(() => {
       setChats(prev => prev.map(chat => 
-        chat.id === chatId ? { ...chat, ...updates } : chat
+        chat.id === chatId ? ensureAvatar({ ...chat, ...updates }) : ensureAvatar(chat)
       ));
     });
   };
@@ -306,7 +317,8 @@ export function useChats() {
   // Добавление нового чата
   const addChat = (chat: Chat) => {
     startTransition(() => {
-      setChats(prev => [chat, ...prev]);
+      const normalizedChat = ensureAvatar(chat);
+      setChats(prev => [normalizedChat, ...prev.map(existing => ensureAvatar(existing))]);
     });
   };
 
@@ -333,8 +345,8 @@ export function useChats() {
     startTransition(() => {
       setChats(prev => prev.map(chat => 
         (chat.id === chatId || chat.chat_id === chatId) 
-          ? { ...chat, unread: 0 } 
-          : chat
+          ? ensureAvatar({ ...chat, unread: 0 }) 
+          : ensureAvatar(chat)
       ));
     });
   }, [markUnreadChatAsRead]);

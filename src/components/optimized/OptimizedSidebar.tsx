@@ -5,7 +5,6 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
@@ -313,6 +312,7 @@ export default function OptimizedSidebar({ selectedChatId }: OptimizedSidebarPro
                 const isGroup = chat.is_group || chatId.endsWith("@g.us");
                 const isSelected = normalizedSelectedId === chatId;
                 const unread = chat.unread ?? 0;
+                const avatarSrc = getAvatarSource(chat) || (isGroup ? DEFAULT_GROUP_AVATAR : DEFAULT_USER_AVATAR);
 
                 return (
                   <li key={chatId}>
@@ -325,12 +325,15 @@ export default function OptimizedSidebar({ selectedChatId }: OptimizedSidebarPro
                       `}
                     >
                       <div className="relative">
-                        <Avatar className="h-12 w-12 ring-1 ring-gray-200/60 dark:ring-gray-700/60">
-                          <AvatarImage src={getAvatarSource(chat)} alt={getDisplayName(chat)} />
-                          <AvatarFallback className="bg-gradient-to-br from-emerald-400 to-emerald-600 text-white font-semibold">
-                            {getAvatarFallback(chat)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <img
+                          src={avatarSrc}
+                          alt={getDisplayName(chat)}
+                          className="h-12 w-12 rounded-full object-cover ring-1 ring-gray-200/60 dark:ring-gray-700/60"
+                          onError={(event) => {
+                            event.currentTarget.onerror = null;
+                            event.currentTarget.src = isGroup ? DEFAULT_GROUP_AVATAR : DEFAULT_USER_AVATAR;
+                          }}
+                        />
                         {isGroup && (
                           <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 shadow-md">
                             <Users className="h-2.5 w-2.5 text-white" />

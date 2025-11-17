@@ -1,6 +1,7 @@
 // src/hooks/useWhatsAppAPI.ts
 import { Chat, Message } from '@/components/chat/types';
 import { useState, useEffect } from 'react';
+import { DEFAULT_GROUP_AVATAR, DEFAULT_USER_AVATAR } from '@/lib/avatar-assets';
 
 type ChatFromAPI = {
   id: string;
@@ -26,7 +27,7 @@ const mapChat = (apiChat: ChatFromAPI): Chat => ({
   time: new Date(apiChat.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
   unread: 0,
   avatarFallback: apiChat.phone.slice(-2),
-  avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(apiChat.phone)}`,
+  avatarUrl: DEFAULT_USER_AVATAR,
 });
 
 const mapMessage = (apiMsg: MessageFromAPI, chatId: string): Message => ({

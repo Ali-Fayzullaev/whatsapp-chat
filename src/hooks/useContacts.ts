@@ -1,6 +1,7 @@
 // src/hooks/useContacts.ts
 "use client";
 import { useLocalStorage } from './useLocalStorage';
+import { DEFAULT_USER_AVATAR } from '@/lib/avatar-assets';
 
 export interface Contact {
   id: string;
@@ -21,7 +22,7 @@ export function useContacts() {
       id: contactId,
       name: name || normalizedPhone,
       phone: normalizedPhone,
-      avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name || normalizedPhone)}`,
+      avatarUrl: DEFAULT_USER_AVATAR,
       createdAt: Date.now(),
     };
 

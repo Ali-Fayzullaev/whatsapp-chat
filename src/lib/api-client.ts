@@ -2,6 +2,7 @@
 import { apiConfig } from "./api-config";
 import { dataCache } from "./cache";
 import type { Chat, Message } from "@/components/chat/types";
+import { DEFAULT_GROUP_AVATAR, DEFAULT_USER_AVATAR } from "./avatar-assets";
 // Кэшированный fetch с автоматической инвалидацией
 async function cachedFetch<T>(
   url: string, 
@@ -74,10 +75,17 @@ export class ApiClient {
         : raw?.timestamp
         ? Date.parse(raw.timestamp)
         : Date.now();
+      const isGroup = raw?.is_group || false;
+      const remoteAvatar =
+        raw?.avatar_url ||
+        raw?.avatar ||
+        raw?.profilePictureUrl ||
+        raw?.profile_picture_url;
+
       return {
         id,
         chat_id: raw?.chat_id || id,
-        is_group: raw?.is_group || false,
+        is_group: isGroup,
         name,
         phone,
         lastMessage: raw?.last_message || raw?.text || "",
@@ -87,7 +95,7 @@ export class ApiClient {
         }),
         unread: raw?.unread_count || 0,
         avatarFallback: name?.slice(0, 2).toUpperCase() || "?",
-        avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}`,
+        avatarUrl: remoteAvatar || (isGroup ? DEFAULT_GROUP_AVATAR : DEFAULT_USER_AVATAR),
         updatedAt: ts,
       };
     }).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));

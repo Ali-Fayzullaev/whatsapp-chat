@@ -2,9 +2,8 @@
 "use client";
 
 import { useState } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Phone, Video, MoreVertical, Trash2 } from "lucide-react";
+import { ArrowLeft, MoreVertical, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +20,6 @@ import {
 } from "@/components/ui/dialog";
 import { useDeleteChat } from "@/hooks/useDeleteChat";
 import { useRouter } from "next/navigation";
-import { useWebSocket } from "@/providers/WebSocketProvider";
 import { DEFAULT_GROUP_AVATAR, DEFAULT_USER_AVATAR } from "@/lib/avatar-assets";
 import type { Chat } from "./types";
 
@@ -42,7 +40,6 @@ export  function ChatHeader({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { deleteChat, loading: deleteLoading } = useDeleteChat();
   const router = useRouter();
-  const { isConnected, connectionState } = useWebSocket();
 
   const handleDeleteChat = async () => {
     const success = await deleteChat(chatId);
@@ -87,42 +84,15 @@ export  function ChatHeader({
     return chatId;
   };
 
-  // Функция для получения статуса (онлайн/оффлайн)
-  const getStatus = () => {
-    if (chatId.startsWith("temp:")) {
-      return "нажмите, чтобы начать чат";
-    }
-
-    if (chat?.lastSeen) {
-      return `Последний раз в сети: ${new Date(chat.lastSeen).toLocaleString(
-        "ru-RU"
-      )}`;
-    }
-
-    return "онлайн";
-  };
-
-  const getAvatarSrc = () => {
-    if (chat?.avatarUrl && chat.avatarUrl.trim().length > 0) {
-      return chat.avatarUrl;
-    }
-
-    const normalizedId = chat?.chat_id || chat?.id || chatId;
-    const isGroupChat = Boolean(chat?.is_group) || Boolean(
-      normalizedId && (normalizedId.endsWith("@g.us") || normalizedId.includes("@broadcast"))
-    );
-
-    return isGroupChat ? DEFAULT_GROUP_AVATAR : DEFAULT_USER_AVATAR;
-  };
-
-  // Функция для получения аватара
-  const getAvatarFallback = () => {
-    const name = getDisplayName();
-    if (name.length > 0) {
-      return name.charAt(0).toUpperCase();
-    }
-    return "?";
-  };
+  const normalizedId = chat?.chat_id || chat?.id || chatId;
+  const isGroupChat = Boolean(chat?.is_group) || Boolean(
+    normalizedId && (normalizedId.endsWith("@g.us") || normalizedId.includes("@broadcast"))
+  );
+  const avatarSrc = chat?.avatarUrl && chat.avatarUrl.trim().length > 0
+    ? chat.avatarUrl
+    : isGroupChat
+      ? DEFAULT_GROUP_AVATAR
+      : DEFAULT_USER_AVATAR;
 
   return (
     <>
@@ -141,12 +111,15 @@ export  function ChatHeader({
 
         {/* Аватар с индикатором онлайн */}
         <div className="relative">
-          <Avatar className="h-11 w-11 ring-2 ring-gray-200 dark:ring-gray-600">
-            <AvatarImage src={getAvatarSrc()} alt={getDisplayName()} />
-            <AvatarFallback className="bg-gradient-to-br from-[#00a884] to-green-600 text-white font-medium text-sm">
-              {getAvatarFallback()}
-            </AvatarFallback>
-          </Avatar>
+          <img
+            src={avatarSrc}
+            alt={getDisplayName()}
+            className="h-11 w-11 rounded-full object-cover ring-2 ring-gray-200 dark:ring-gray-600"
+            onError={(event) => {
+              event.currentTarget.onerror = null;
+              event.currentTarget.src = isGroupChat ? DEFAULT_GROUP_AVATAR : DEFAULT_USER_AVATAR;
+            }}
+          />
         </div>
 
         {/* Информация о чате */}

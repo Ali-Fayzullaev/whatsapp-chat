@@ -1,5 +1,6 @@
 //src/app/components/chat/fixtures.ts
 import type { Chat, Message } from "./types";
+import { DEFAULT_USER_AVATAR } from "@/lib/avatar-assets";
 
 export function makeChats(count = 15): Chat[] {
   const rnd = seeded("chats");
@@ -19,9 +20,7 @@ export function makeChats(count = 15): Chat[] {
       lastMessage: last,
       time: hhmm(minutes),
       unread: rnd() > 0.7 ? Math.floor(rnd() * 5) + 1 : 0,
-      avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
-        name
-      )}`,
+      avatarUrl: DEFAULT_USER_AVATAR,
       avatarFallback: name[0],
     });
   }

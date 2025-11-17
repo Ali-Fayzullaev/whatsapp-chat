@@ -10,10 +10,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Search, Plus, Menu, Trash2, MoreVertical } from "lucide-react";
+import { Search, Plus, Menu, Trash2, MoreVertical, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -139,11 +138,9 @@ export function Sidebar({
       {/* 🔹 Telegram Style: Хедер */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarFallback className="bg-blue-500 text-white">
-              <Menu className="h-5 w-5" />
-            </AvatarFallback>
-          </Avatar>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white">
+            <Menu className="h-5 w-5" />
+          </div>
           <div className="flex flex-col">
             <div className="text-lg font-semibold text-gray-900 dark:text-white">
               Чаты
@@ -235,15 +232,22 @@ export function Sidebar({
                       className="flex items-center gap-3 flex-1 min-w-0 text-left"
                       onClick={() => setSelectedId(chatId)}
                     >
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={avatarSrc} alt={chat_name} />
-                        <AvatarFallback className="bg-green-500 text-white">
-                          {chat.avatarFallback ||
-                            (typeof chat.name === "string" && chat.name.length > 0
-                              ? chat.name.charAt(0)
-                              : chatId.charAt(0).toUpperCase() || "?")}
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className="relative">
+                        <img
+                          src={avatarSrc}
+                          alt={chat_name || "Аватар чата"}
+                          className="h-12 w-12 rounded-full object-cover ring-1 ring-gray-200/60 dark:ring-gray-700/60"
+                          onError={(event) => {
+                            event.currentTarget.onerror = null;
+                            event.currentTarget.src = isGroupChat ? DEFAULT_GROUP_AVATAR : DEFAULT_USER_AVATAR;
+                          }}
+                        />
+                        {isGroupChat && (
+                          <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 shadow-md">
+                            <Users className="h-2.5 w-2.5 text-white" />
+                          </span>
+                        )}
+                      </div>
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
