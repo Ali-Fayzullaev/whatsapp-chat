@@ -1,7 +1,7 @@
 // src/hooks/useWhatsAppAPI.ts
 import { Chat, Message } from '@/components/chat/types';
 import { useState, useEffect } from 'react';
-import { DEFAULT_GROUP_AVATAR, DEFAULT_USER_AVATAR } from '@/lib/avatar-assets';
+import { DEFAULT_USER_AVATAR } from '@/lib/avatar-assets';
 
 type ChatFromAPI = {
   id: string;
