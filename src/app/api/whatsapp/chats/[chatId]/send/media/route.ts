@@ -51,24 +51,17 @@ export async function POST(
     console.log("Sending media message:", {
       chatId,
       media_url,
-      caption
+      caption,
+      reply_to
     });
 
     const decodedId = decodeURIComponent(chatId);
+    const replyToMessageId = reply_to || null;
 
-    // 🔹 1. Загружаем файл на ваш сервер С АВТОРИЗАЦИЕЙ
-    const uploadResult = await uploadFileToYourServer(file, `Bearer ${token}`);
+    // Для прямых URL медиа-файлов пропускаем загрузку на сервер
+    const fullUrl = media_url;
 
-    if (!uploadResult.success) {
-      console.error("File upload failed:", uploadResult.error);
-      return Response.json({ error: uploadResult.error }, { status: 400 });
-    }
-
-    console.log("File uploaded successfully:", uploadResult);
-
-    // 🔹 2. Преобразуем path в полный URL
-    const fullUrl = `${apiConfig.getBaseUrl()}${uploadResult.path}`;
-    console.log("Full file URL:", fullUrl);
+    console.log("Using direct media URL:", fullUrl);
 
     // 🔹 3. Проверяем доступность файла по URL
     const fileAccessible = await checkFileAccessibility(fullUrl);
@@ -83,10 +76,11 @@ export async function POST(
     }
 
     // 🔹 4. Отправляем медиа-сообщение через Green API
+    const fileName = media_url.split('/').pop() || 'media_file';
     const sendResult = await sendMediaToGreenAPI(
       decodedId,
       fullUrl,
-      file.name,
+      fileName,
       caption,
       replyToMessageId, // 🔹 ДОБАВЛЕНО
       token // 🔹 ОБНОВЛЕНО: Используем извлеченный токен
@@ -107,79 +101,6 @@ export async function POST(
       },
       { status: 500 }
     );
-  }
-}
-
-// 🔹 ФУНКЦИЯ ЗАГРУЗКИ ФАЙЛА НА ВАШ СЕРВЕР С АВТОРИЗАЦИЕЙ
-async function uploadFileToYourServer(
-  file: File,
-  authHeader?: string | null
-): Promise<{ success: boolean; path?: string; error?: string }> {
-  try {
-    console.log("Uploading file to your server with authorization...");
-
-    // Определяем endpoint для загрузки в зависимости от типа файла
-    let uploadEndpoint: string;
-
-    if (file.type.startsWith("image/")) {
-      uploadEndpoint = "/api/whatsapp/files/upload-image";
-    } else if (file.type.startsWith("video/")) {
-      uploadEndpoint = "/api/whatsapp/files/upload-video";
-    } else if (file.type.startsWith("audio/")) {
-      uploadEndpoint = "/api/whatsapp/files/upload-audio";
-    } else {
-      uploadEndpoint = "/api/whatsapp/files/upload-document";
-    }
-
-    // Используем базовый URL для нашего собственного API (не внешний сервер)
-    const uploadUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}${uploadEndpoint}`;
-    console.log("Upload URL:", uploadUrl);
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    // 🔹 ДОБАВЛЯЕМ AUTHORIZATION HEADER
-    const headers: Record<string, string> = {};
-    if (authHeader) {
-      headers['Authorization'] = authHeader;
-    }
-    console.log("Upload headers:", headers);
-
-    const res = await fetch(uploadUrl, {
-      method: "POST",
-      body: formData,
-      headers: headers, // 🔹 ОТПРАВЛЯЕМ С АВТОРИЗАЦИЕЙ
-    });
-
-    console.log("Upload response status:", res.status);
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error("Upload error response:", errorText);
-      return {
-        success: false,
-        error: `Upload failed: ${res.status} - ${errorText}`,
-      };
-    }
-
-    const data = await res.json();
-    console.log("Upload response data:", data);
-
-    // Проверяем структуру ответа
-    if (data.success && data.path) {
-      return { success: true, path: data.path };
-    } else {
-      return {
-        success: false,
-        error: "Invalid upload response: " + JSON.stringify(data),
-      };
-    }
-  } catch (error) {
-    console.error("Upload error:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Upload failed",
-    };
   }
 }
 
@@ -205,7 +126,7 @@ async function sendMediaToGreenAPI(
   caption: string | null,
   replyToMessageId?: string | null, // 🔹 ДОБАВЛЕНО
   token?: string | null // 🔹 ОБНОВЛЕНО: Изменили название параметра
-): Promise<{ success: boolean; data?: any; error?: string }> {
+): Promise<{ success: boolean; data?: unknown; error?: string }> {
   try {
     console.log("Sending media to Green API...");
     console.log("File URL:", fileUrl);
@@ -213,7 +134,7 @@ async function sendMediaToGreenAPI(
     console.log("Reply to message ID:", replyToMessageId);
 
     // 🔹 ОБНОВЛЕННЫЙ PAYLOAD ДЛЯ GREEN API
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       chatId: chatId,
       url: fileUrl,
       fileName: fileName,

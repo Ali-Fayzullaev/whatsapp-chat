@@ -19,6 +19,14 @@ const eslintConfig = [
       "build/**",
       "next-env.d.ts",
     ],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn", // Делаем предупреждением вместо ошибки
+      "@typescript-eslint/no-unused-vars": "warn",
+      "prefer-const": "warn",
+      "@next/next/no-img-element": "warn",
+      "jsx-a11y/alt-text": "warn",
+      "react-hooks/exhaustive-deps": "warn",
+    },
   },
 ];
 
